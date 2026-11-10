@@ -1,0 +1,39 @@
+:root{font-family:Pretendard,sans-serif;color:#223037;background:#fff;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box;border-width:0;border-style:solid;--tx:0px;--ty:0px}
+body{margin:0}p{margin:0}img{display:block}button,input,textarea{font:inherit;color:inherit}button{cursor:pointer}a{color:inherit}
+.screen-viewport{position:relative;margin:0 auto;overflow:hidden;background:#fff}
+.screen-stage{position:relative;width:393px;transform-origin:top left}
+.design-root{width:393px!important;height:100%;overflow:hidden;isolation:isolate}
+.design-action{cursor:pointer;touch-action:manipulation}
+.design-action:focus-visible,[contenteditable]:focus-visible,input:focus-visible{outline:2px solid #1e838a;outline-offset:3px}
+/* Keep live profile values anchored to the design's left text edge.
+   The original centered labels only work for the sample text widths. */
+.design-root [data-node-id="130:769"],
+.design-root [data-node-id="130:777"],
+.design-root [data-node-id="130:776"]{left:135px;width:200px;max-width:200px;translate:none;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.design-root [data-node-id="33:3972"]{left:127px;width:184px;max-width:184px;translate:none;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Higher specificity than generated design classes also prevents the
+   nickname's sample -50% translation from shifting the real input. */
+.design-root input.profile-input{left:120px;width:224px;max-width:224px;min-width:0;height:46px;outline:none;background:transparent;padding:0;text-align:left;transform:none;translate:none;line-height:1.4;border-radius:0}
+.design-root input.profile-input[data-node-id="130:846"]{top:163px}
+.design-root input.profile-input[data-node-id="130:847"]{top:219px}
+.design-root input.profile-input[data-node-id="130:848"]{left:118px;top:275px}
+.message-input{width:100%;height:100%;background:transparent;border:0;outline:0;border-radius:100px;padding:10px 44px 10px 14px}
+.design-root button.setting-switch{appearance:none;border:0;padding:0;border-radius:100px;background:#d9d9d9;display:block}
+.design-root button.setting-switch span{position:absolute;top:50%;left:5px;translate:0 -50%;display:block;width:24px;height:24px;border-radius:50%;background:white;box-shadow:0 1px 2px #0001;pointer-events:none}
+.design-root button.setting-switch.is-on{background:#3ce892}
+.design-root button.setting-switch.is-on span{left:calc(100% - 29px)}
+.design-root button.record-checkbox{appearance:none;border:0;padding:0;background:transparent;display:grid;place-items:center;cursor:pointer}
+/* All modal close controls use the same 30px slot and 16px inner inset. */
+.design-root[data-node-id="120:253"]{--modal-top:258.11px;--modal-right:39px}
+.design-root[data-node-id="113:3286"]{--modal-top:279px;--modal-right:39px}
+.design-root[data-node-id="155:226"]{--modal-top:319px;--modal-right:16px}
+.design-root [data-name="tabler:square-x-filled"]{top:calc(var(--modal-top) + 16px);left:auto;right:calc(var(--modal-right) + 16px);width:30px;height:30px;z-index:2}
+.setting-switch:focus-visible,.record-checkbox:focus-visible{outline:2px solid #1e838a;outline-offset:3px}
+.setting-switch:focus:not(:focus-visible),.record-checkbox:focus:not(:focus-visible){outline:none}
+.notice{position:fixed;z-index:100;left:50%;bottom:24px;translate:-50% 0;width:max-content;max-width:calc(100% - 32px);border-radius:14px;background:#223037;color:white;font-size:14px;line-height:1.5;padding:12px 18px;box-shadow:0 4px 16px #0002}
+[contenteditable="true"]{overflow:auto;white-space:pre-wrap;cursor:text;scrollbar-width:thin}
+.design-root [data-name="tabler:check"]{pointer-events:none}
+.design-root [data-node-id="113:2809"],.design-root [data-node-id="120:460"],.design-root [data-node-id="33:3939"]{display:block;-webkit-line-clamp:unset;overflow-x:hidden;overflow-y:auto;text-overflow:clip;overscroll-behavior-y:contain;scrollbar-width:thin;touch-action:pan-y}
+.design-root[data-node-id="17:452"],.design-root[data-node-id="17:514"],.design-root[data-node-id="155:1165"]{overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;touch-action:pan-y}
+@media(prefers-reduced-motion:no-preference){.design-root button.setting-switch{transition:background-color .15s}.design-root button.setting-switch span{transition:left .15s}}

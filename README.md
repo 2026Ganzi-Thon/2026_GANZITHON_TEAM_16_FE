@@ -1,58 +1,36 @@
-# MOWOO Frontend
+# MOWOO Frontend — UI
 
-모우 프론트엔드의 초기 개발 환경입니다.
-
-## 기술
-
-- React 19
-- TypeScript
-- Vite
-- CSS
+React + TypeScript + Vite 기반 피그마 UI 구현입니다. 이 브랜치에는 로그인 인증, 토큰 처리, HTTP 요청, 백엔드 프록시가 없습니다.
 
 ## 실행
-
-Node.js LTS와 npm을 설치한 후 저장소 최상위에서 실행합니다.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-주소: http://localhost:3000
+http://localhost:3000/ 에서 카카오 모양 버튼을 누르면 로그인 없이 UI 미리보기로 이동합니다. 직접 /home으로 접근할 수도 있습니다.
 
-포트 3000이 사용 중이면 기존 서버를 종료한 뒤 실행합니다.
+## 포함 범위
 
-## 빌드
+- 피그마 20개 화면·모달과 원본 자산 120개
+- 화면 이동, 실제 방문 순서의 뒤로가기·스크롤 복원
+- 로컬 프로필 편집·설정 토글·일기 편집·선택 체크박스
+- 브라우저 localStorage로 미리보기 값 저장
+
+대화 횟수와 일기 생성 버튼은 예시 화면입니다. AI 응답·서버 데이터·실제 기록 삭제는 연결되지 않았습니다.
+
+## 확인
 
 ```sh
 npm run build
+npm run check:layout
+npm run check:navigation
+npm run check:controls
 ```
 
-TypeScript 검사 후 `dist/`에 빌드 결과를 생성합니다.
+브라우저 검사는 Chrome이 필요합니다. 상세 경로와 검사는 [검증 문서](docs/TESTING.md)를 참고하세요. 393px 디자인을 기준으로 좁은 화면에서는 축소합니다. SF Pro는 Arial로 대체합니다.
 
-```sh
-npm run preview
-```
+## 브랜치 범위
 
-## 구조
-
-```text
-src/
-  App.tsx         기본 화면
-  main.tsx        React 진입점
-  index.css       기본 스타일
-  vite-env.d.ts   Vite 타입 선언
-index.html
-tsconfig.json
-vite.config.ts
-```
-
-초기 화면과 실행·빌드 설정만 포함합니다. 서비스 UI, 라우팅, API 연동, 인증, 환경변수는 기능 브랜치에서 추가합니다.
-
-## 브랜치
-
-- `main`: 초기 기준 및 안정 버전
-- `develop`: 개발 통합
-- `feat/*`: 기능 구현 후 `develop`으로 PR
-
-빈 저장소의 첫 커밋을 `main`에 올린 후 동일한 커밋에서 `develop`을 생성합니다.
+이 PR: feature/frontend-ui → develop. 다음 작업은 feature/kakao-login, 그다음 feature/user-profile-api 순서입니다.

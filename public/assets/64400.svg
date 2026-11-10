@@ -1,0 +1,16 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="73" height="73" viewBox="0 0 73 73" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 1000003054">
+<rect id="Rectangle 149" x="1" y="1" width="71" height="71" rx="7" fill="white" stroke-width="2" stroke="#174D83"/>
+<g id="Ellipse 64" filter="url(#filter0_f_0_69)">
+<ellipse cx="36.6" cy="65.2437" rx="14.6" ry="1.36875" fill="#E9E9E9"/>
+<ellipse cx="36.6" cy="65.2437" rx="14.6" ry="1.36875" fill="#174D83"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_f_0_69" x="20" y="61.875" width="33.2" height="6.7375" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="1" result="effect1_foregroundBlur_0_69"/>
+</filter>
+</defs>
+</svg>
