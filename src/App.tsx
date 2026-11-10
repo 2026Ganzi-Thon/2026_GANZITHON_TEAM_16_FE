@@ -2,6 +2,7 @@ import { Children, cloneElement, isValidElement, useEffect, useLayoutEffect, use
 import { screens, type ScreenName } from './design/screens';
 import type { Profile } from './types/profile';
 import { useProfile } from './hooks/useProfile';
+import { useAuth } from './features/auth/useAuth';
 import { initializeNavigation, navigate, rememberPosition, restorePosition, returnToPrevious } from './navigation';
 
 const paths: Record<string, ScreenName> = {
@@ -34,6 +35,10 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const previewOnly = location.pathname.startsWith('/design/');
+  const { startLogin, logout } = useAuth({
+    onAuthenticated: () => { navigate('/home', true); setScreen('Home'); },
+    onError: setNotice,
+  });
 
   const go = (next: ScreenName, replace = false) => {
     const path = Object.entries(paths).find(([, value]) => value === next)?.[0] ?? `/design/${next}`;
@@ -86,14 +91,10 @@ export default function App() {
     if (draft.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) { setNotice('이메일 주소를 확인해 주세요.'); return; }
     try { await saveProfile({ nickname: draft.nickname, email: draft.email || null, birthDate: draft.birthDate || null }); back(); } catch (e) { setNotice((e as Error).message); }
   }
-  function openPreview() {
-    go('Home');
-    setNotice('로그인 API가 연결되지 않은 UI 미리보기예요.');
-  }
   const actions: Record<string, [string, () => void]> = {};
   const link = (ids: string[], label: string, next: ScreenName) => ids.forEach(id => { actions[id] = [label, () => go(next)]; });
   if (screen === 'Login') {
-    actions['91:79'] = ['카카오 로그인', openPreview];
+    actions['91:79'] = ['카카오 로그인', startLogin];
     actions['227:217'] = ['구글 로그인', () => setNotice('구글 로그인은 아직 연결되지 않았어요.')];
     actions['91:69'] = ['네이버 로그인', () => setNotice('네이버 로그인은 아직 연결되지 않았어요.')];
   }
@@ -110,7 +111,7 @@ export default function App() {
   }
   if (screen === 'Profile') {
     link(['130:801'], '내 정보 수정', 'EditProfile');
-    actions['130:779'] = ['로그아웃', () => go('Login')];
+    actions['130:779'] = ['로그아웃', () => { void logout().then(() => go('Login')).catch(error => setNotice(error.message)); }];
     ['130:780','130:786','130:787','130:789'].forEach(id => { actions[id] = ['메뉴 안내', () => setNotice('이 메뉴는 아직 연결되지 않았어요.')]; });
   }
   if (screen === 'EditProfile') actions['130:844'] = ['저장하기', () => { void submitProfile(); }];

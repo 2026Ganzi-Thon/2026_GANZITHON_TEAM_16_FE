@@ -1,0 +1,34 @@
+import { chromium } from '@playwright/test';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import assert from 'node:assert/strict';
+const base='http://127.0.0.1:3100';
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','3100','--strictPort'],{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,VITE_KAKAO_CLIENT_ID:'test-rest-key',VITE_KAKAO_REDIRECT_URI:'http://localhost:3000/login/oauth2/code/kakao'}});
+let browser;
+try {
+ await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Server startup timeout')),15000);server.once('exit',code=>{clearTimeout(timer);reject(new Error('Server exited '+code));});server.stdout.on('data',data=>{if(data.toString().includes('3100')){clearTimeout(timer);resolve();}});});
+ browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:393,height:900}});
+ let loginCalls=0,profileCalls=0,reissueCalls=0,logoutCalls=0,logoutFailure=false;
+ await page.route('**/api/v1/me',route=>{profileCalls++;return route.fulfill({status:500,json:{message:'Profile API must not be called by auth-only branch.'}});});
+ await page.route('**/api/v1/auth/kakao',route=>{loginCalls++;assert.equal(route.request().method(),'POST');const {code}=route.request().postDataJSON();return code==='bad-code'?route.fulfill({status:400,json:{error:{message:'잘못된 인가 코드'}}}):route.fulfill({json:{accessToken:'test-access-token',id:'user-1',username:'사용자'},headers:{'Set-Cookie':'refresh_token=test-refresh; Path=/api/v1/auth; HttpOnly; SameSite=Lax'}});});
+ await page.route('**/api/v1/auth/reissue',route=>{reissueCalls++;assert(route.request().headers().cookie?.includes('refresh_token=test-refresh'));return route.fulfill({json:{accessToken:'renewed-token'}});});
+ await page.route('**/api/v1/auth/logout',route=>{logoutCalls++;assert.equal(route.request().headers().authorization,'Bearer test-access-token');return logoutFailure?route.fulfill({status:500,json:{message:'로그아웃 실패 테스트'}}):route.fulfill({json:{isSuccess:true}});});
+ await page.goto(base+'/login/oauth2/code/kakao?code=new-code');await page.waitForURL(base+'/home');
+ assert.equal(loginCalls,1,'StrictMode must not exchange the same code twice.');
+ assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),'test-access-token');
+ assert(!(await page.evaluate(()=>document.cookie)).includes('refresh_token'));
+ const renewed=await page.evaluate(async()=>{const {authApi}=await import('/src/features/auth/api.ts');return authApi.reissue();});
+ assert.equal(renewed.accessToken,'renewed-token');assert.equal(reissueCalls,1);
+ await page.getByRole('button',{name:'마이페이지',exact:true}).click();await page.getByRole('button',{name:'내 정보',exact:true}).first().click();
+ logoutFailure=true;await page.getByRole('button',{name:'로그아웃',exact:true}).click();await page.getByRole('status').filter({hasText:'로그아웃 실패 테스트'}).waitFor();
+ assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),'test-access-token');
+ logoutFailure=false;await page.getByRole('button',{name:'로그아웃',exact:true}).click();await page.waitForURL(base+'/');
+ assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),null);assert.equal(logoutCalls,2);
+ await page.goto(base+'/login/oauth2/code/kakao?code=bad-code');await page.getByRole('status').filter({hasText:'잘못된 인가 코드'}).waitFor();
+ assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),null);
+ await page.route('https://kauth.kakao.com/**',route=>route.fulfill({body:'Mock authorization screen'}));
+ await page.goto(base+'/');await page.getByRole('button',{name:'카카오 로그인',exact:true}).click();await page.waitForURL('https://kauth.kakao.com/**');
+ const authorization=new URL(page.url());assert.equal(authorization.searchParams.get('client_id'),'test-rest-key');assert.equal(authorization.searchParams.get('response_type'),'code');
+ assert.equal(profileCalls,0,'Authentication feature must not include profile API calls.');
+ console.log('PASS: authorization URL, one-time code exchange, token storage, HttpOnly cookie reissue, logout success/failure, invalid code and zero profile API requests (mock API).');
+} finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}}
