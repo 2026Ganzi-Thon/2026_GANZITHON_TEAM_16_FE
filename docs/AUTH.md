@@ -1,6 +1,6 @@
 # 카카오 로그인 연동
 
-이 브랜치는 `feature/frontend-ui` 위에 인증 기능만 추가합니다. 프로필 GET/PATCH API는 다음 `feature/user-profile-api`에서 추가합니다. 현재 내 정보와 설정은 여전히 로컬 예시 값입니다.
+인증 기능은 `feature/kakao-login`에서 분리 구현했습니다. 프로필 GET/PATCH는 후속 `feature/user-profile-api`에서 추가하며, 이 문서는 인증 모듈의 범위를 설명합니다.
 
 ## 로컬 설정
 
@@ -25,4 +25,4 @@ Refresh Token은 백엔드의 HttpOnly 쿠키로 관리합니다. `authApi.reiss
 
 React StrictMode에서 같은 인가 코드가 중복 교환되지 않도록 진행 중인 콜백 요청을 공유합니다. 이 브랜치의 모의 API 검사는 실제 카카오·서버 통합 검증과 구분합니다.
 
-관련 코드: `src/features/auth/`, `src/lib/http.ts`. 프로필 API 파일은 아직 없습니다.
+관련 코드: `src/features/auth/`, `src/lib/http.ts`. 프로필 후속 기능은 `src/features/profile/`에서 별도로 관리합니다.

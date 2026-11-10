@@ -47,6 +47,30 @@ try{
   await page.getByRole('button',{name:'취소',exact:true}).click();
   await page.screenshot({path:`.local/toggle-controls/switches-${width}.png`,fullPage:true});
  }
+ let profile={nickname:'테스트',email:'test@example.com',birthDate:null,usePastDiaries:false,eveningReminderEnabled:false};
+ let failNext=false,patches=0;
+ await page.route('**/api/v1/me',async route=>{
+  if(route.request().method()==='PATCH'){
+   patches++;await new Promise(resolve=>setTimeout(resolve,200));
+   if(failNext){failNext=false;return route.fulfill({status:500,json:{message:'저장 실패 테스트'}});}
+   profile={...profile,...route.request().postDataJSON()};
+  }
+  return route.fulfill({json:profile});
+ });
+ await page.goto(base+'/mypage');await page.evaluate(()=>sessionStorage.setItem('mowoo.accessToken','mock-token'));await page.reload();
+ await page.waitForResponse(response=>response.url().endsWith('/api/v1/me'));
+ const toggle=page.getByRole('switch',{name:'저녁 모우 알림',exact:true});
+ for(const expected of [true,false]){
+  await toggle.click();assert.equal(await toggle.getAttribute('aria-checked'),String(expected));
+  assert(await toggle.isDisabled(),'Prevent overlapping saves.');
+  await page.waitForFunction(()=>!document.querySelector('[role="switch"]').disabled);
+  assert.equal(profile.eveningReminderEnabled,expected);
+ }
+ assert.equal(patches,2);
+ failNext=true;await toggle.click();
+ await page.waitForFunction(()=>!document.querySelector('[role="switch"]').disabled);
+ assert.equal(await toggle.getAttribute('aria-checked'),'false','Roll back failed saves.');
+ assert.equal(profile.eveningReminderEnabled,false);
  assert.deepEqual(errors,[]);
- console.log('PASS: local setting switches and record checkboxes at 320/393px.');
+ console.log('PASS: repeated switch on/off and thumb positions; checkbox icons and click/keyboard toggles at 320/393px; mocked API persistence, pending lock and failure rollback.');
 }finally{await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}}

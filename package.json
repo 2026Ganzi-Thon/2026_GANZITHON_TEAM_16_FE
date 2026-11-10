@@ -12,7 +12,8 @@
     "check:layout": "node scripts/verify-profile-layout.mjs",
     "check:navigation": "node scripts/verify-reading-navigation.mjs",
     "check:controls": "node scripts/verify-toggle-controls.mjs",
-    "check:auth": "node scripts/verify-auth.mjs"
+    "check:auth": "node scripts/verify-auth.mjs",
+    "check:profile-api": "node scripts/verify-profile-api.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",

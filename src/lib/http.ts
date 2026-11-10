@@ -2,8 +2,14 @@ const tokenKey = 'mowoo.accessToken';
 
 export const tokens = {
   get: () => sessionStorage.getItem(tokenKey),
-  set: (value: string) => sessionStorage.setItem(tokenKey, value),
-  clear: () => sessionStorage.removeItem(tokenKey),
+  set: (value: string) => {
+    sessionStorage.setItem(tokenKey, value);
+    window.dispatchEvent(new Event('mowoo:auth-change'));
+  },
+  clear: () => {
+    sessionStorage.removeItem(tokenKey);
+    window.dispatchEvent(new Event('mowoo:auth-change'));
+  },
 };
 
 export async function request<T>(url: string, options: RequestInit = {}): Promise<T> {

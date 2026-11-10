@@ -21,12 +21,13 @@ export default function App() {
   };
   const [screen, setScreen] = useState<ScreenName>(getScreen);
   const [scale, setScale] = useState(Math.min(1, innerWidth / 393));
-  const { profile, saveProfile: persistProfile } = useProfile();
+  const { profile, saveProfile: persistProfile, error: profileError } = useProfile();
   const [draft, setDraft] = useState(profile);
   useEffect(() => setDraft(profile), [profile]);
   const [message, setMessage] = useState('');
   const [lastMessage, setLastMessage] = useState('');
   const [notice, setNotice] = useState('');
+  useEffect(() => { if (profileError) setNotice(profileError); }, [profileError]);
   const [selected, setSelected] = useState<Set<string>>(new Set(['113:984']));
   const [savingSetting, setSavingSetting] = useState<string | null>(null);
   const settingPending = useRef(false);

@@ -1,6 +1,6 @@
 # MOWOO Frontend — UI
 
-React + TypeScript + Vite 기반 피그마 UI 구현입니다. 이 브랜치에는 카카오 로그인·토큰 처리·로그아웃을 추가했습니다. 프로필 GET/PATCH API는 아직 없으며 화면의 프로필은 로컬 예시입니다.
+React + TypeScript + Vite 기반 피그마 UI 구현입니다. 이 브랜치에는 카카오 로그인·토큰 처리·로그아웃을 추가했습니다. 프로필 GET/PATCH와 설정 저장도 별도 모듈에 연결했습니다. 비로그인 상태에서는 로컬 미리보기를 사용합니다.
 
 ## 실행
 
@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-카카오 로그인은 `.env.local`과 백엔드 실행이 필요합니다. 설정과 인증 흐름은 [카카오 로그인 문서](docs/AUTH.md)를 참고하세요. UI만 확인하려면 /home으로 직접 접근합니다.
+카카오 로그인은 `.env.local`과 백엔드 실행이 필요합니다. 설정과 전체 API 연동은 [백엔드 연동 문서](docs/BACKEND_INTEGRATION.md), 인증은 [카카오 로그인 문서](docs/AUTH.md)를 참고하세요. UI만 확인하려면 /home으로 직접 접근합니다.
 
 ## 포함 범위
 
@@ -33,4 +33,4 @@ npm run check:controls
 
 ## 브랜치 범위
 
-이 PR: feature/kakao-login → develop. feature/frontend-ui 병합 후 진행하고, 다음 PR은 feature/user-profile-api입니다.
+이 PR: feature/user-profile-api → develop. feature/frontend-ui, feature/kakao-login 병합 후 진행합니다.
