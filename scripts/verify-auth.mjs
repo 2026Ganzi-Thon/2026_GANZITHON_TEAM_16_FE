@@ -9,7 +9,7 @@ try {
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Server startup timeout')),15000);server.once('exit',code=>{clearTimeout(timer);reject(new Error('Server exited '+code));});server.stdout.on('data',data=>{if(data.toString().includes('3100')){clearTimeout(timer);resolve();}});});
  browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:393,height:900}});
  let loginCalls=0,profileCalls=0,reissueCalls=0,logoutCalls=0,logoutFailure=false;
- await page.route('**/api/v1/me',route=>{profileCalls++;return route.fulfill({status:500,json:{message:'Profile API must not be called by auth-only branch.'}});});
+ await page.route('**/api/v1/me',route=>{profileCalls++;return route.fulfill({json:{id:'user-1',nickname:'사용자',email:'user@example.com',birthDate:null,usePastDiaries:false,eveningReminderEnabled:false}});});
  await page.route('**/api/v1/auth/kakao',route=>{loginCalls++;assert.equal(route.request().method(),'POST');const {code}=route.request().postDataJSON();return code==='bad-code'?route.fulfill({status:400,json:{error:{message:'잘못된 인가 코드'}}}):route.fulfill({json:{accessToken:'test-access-token',id:'user-1',username:'사용자'},headers:{'Set-Cookie':'refresh_token=test-refresh; Path=/api/v1/auth; HttpOnly; SameSite=Lax'}});});
  await page.route('**/api/v1/auth/reissue',route=>{reissueCalls++;assert(route.request().headers().cookie?.includes('refresh_token=test-refresh'));return route.fulfill({json:{accessToken:'renewed-token'}});});
  await page.route('**/api/v1/auth/logout',route=>{logoutCalls++;assert.equal(route.request().headers().authorization,'Bearer test-access-token');return logoutFailure?route.fulfill({status:500,json:{message:'로그아웃 실패 테스트'}}):route.fulfill({json:{isSuccess:true}});});
@@ -29,6 +29,6 @@ try {
  await page.route('https://kauth.kakao.com/**',route=>route.fulfill({body:'Mock authorization screen'}));
  await page.goto(base+'/');await page.getByRole('button',{name:'카카오 로그인',exact:true}).click();await page.waitForURL('https://kauth.kakao.com/**');
  const authorization=new URL(page.url());assert.equal(authorization.searchParams.get('client_id'),'test-rest-key');assert.equal(authorization.searchParams.get('response_type'),'code');
- assert.equal(profileCalls,0,'Authentication feature must not include profile API calls.');
- console.log('PASS: authorization URL, one-time code exchange, token storage, HttpOnly cookie reissue, logout success/failure, invalid code and zero profile API requests (mock API).');
+ assert(profileCalls>0,'Profile hook must load the user after authentication.');
+ console.log('PASS: authorization URL, one-time code exchange, token storage, HttpOnly cookie reissue, logout success/failure, invalid code and authenticated profile refresh (mock API).');
 } finally {await browser?.close();if(server.exitCode===null){server.kill();await once(server,'exit');}}
