@@ -6,8 +6,8 @@
 | --- | --- |
 | `/`, `/home` | 로그인·메인 |
 | `/mypage`, `/me`, `/me/edit` | My 모우·내 정보·수정 |
-| `/characters`, `/characters/detail` | 캐릭터·상세 모달 |
-| `/chat`, `/chat/ready`, `/chat/progress` | 대화·일기 생성 가능·진행도 |
+| `/characters`, `/characters/detail?character=kind` | 캐릭터·상세 모달 (캐릭터별) |
+| `/chat`, `/chat?session=<id>` | 대화 (진행도·생성 가능 상태는 자동 전환), 보관함에서 연 대화 |
 | `/diary`, `/diary/new` | 오늘의 기록·작성 방식 선택 |
 | `/diary/write`, `/diary/saved`, `/diary/detail` | 작성·저장 모달·상세 |
 | `/calendar`, `/archive` | 감정 캘린더·대화 보관함 |
