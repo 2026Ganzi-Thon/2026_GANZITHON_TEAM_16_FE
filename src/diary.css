@@ -1,0 +1,39 @@
+/* Live diary layers (logged in) in the 393px design space, styled after the Figma cards. */
+.diary-live-list{position:absolute;left:16px;width:361px;display:flex;flex-direction:column;gap:12px;padding-bottom:110px;z-index:1}
+.diary-card{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;padding:16px 18px;border:1px solid #e9e9e9;border-radius:10px;background:#fff;text-align:left}
+.diary-card-date{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;color:#223037}
+.diary-card-title{font-size:15px;font-weight:600;color:#223037;padding-left:2px}
+.diary-card-preview{width:100%;margin-top:4px;font-size:14px;line-height:1.43;color:#858585;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-line}
+.diary-blob{width:20px;height:20px;flex:none}
+.diary-empty{padding:28px 0;text-align:center;color:#858585;font-size:14px;line-height:1.6}
+.diary-more,.diary-link{align-self:center;background:#fff;border:1px solid #e9e9e9;border-radius:100px;padding:7px 18px;font-size:13px;color:#858585}
+.diary-link{padding:2px 10px;margin-left:4px}
+.live-calendar{position:absolute;top:157px;left:16px;width:361px;height:333px;background:#fff;border-radius:13px;filter:drop-shadow(0 10px 30px rgba(0,0,0,.1));padding:24px 16px 12px;z-index:1}
+.live-calendar-head{display:flex;justify-content:space-between;align-items:center;height:28px;padding:0 4px;margin-bottom:8px}
+.live-calendar-head strong{font-size:17px;font-weight:600;color:#223037;letter-spacing:-.4px}
+.live-calendar-head button{width:32px;height:28px;background:transparent;font-size:24px;line-height:1;color:#1e838a}
+.live-calendar-head button:disabled{color:#cfd8d6;cursor:default}
+.live-calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px;justify-items:center}
+.live-calendar-weekday{font-size:12px;font-weight:600;color:#b0b6b8;padding-bottom:4px}
+.live-calendar-weekday.is-sun{color:#ef7c7c}.live-calendar-weekday.is-sat{color:#6f9ff0}
+.live-calendar-day{position:relative;width:40px;height:38px;background:transparent;display:grid;place-items:center;font-size:18px;color:#223037;font-variant-numeric:tabular-nums}
+.live-calendar-day .diary-blob{position:absolute;inset:2px;width:auto;height:auto}
+.live-calendar-day span{position:relative}
+.live-calendar-day.has-diary span{color:#fff;font-weight:700}
+.live-calendar-list{top:543px}
+.live-calendar-title{margin:12px 9px 2px;font-size:20px;font-weight:600;color:#1e838a}
+.delete-live-list{position:absolute;top:259px;left:29px;width:328px;height:480px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:10px;z-index:2;scrollbar-width:thin}
+.delete-live-card{position:relative;display:flex;flex-direction:column;gap:4px;padding:16px 46px 14px 18px;border:1px solid #e9e9e9;border-radius:10px;background:#fff;cursor:pointer}
+.delete-live-card.is-checked{border-color:#3f8486}
+.delete-live-card input{position:absolute;opacity:0;width:1px;height:1px}
+.delete-live-card .diary-card-date{font-size:15px}
+.delete-live-card .diary-card-preview{color:#b0b6b8}
+.delete-live-check{position:absolute;top:14px;right:14px;width:24px;height:24px}
+.delete-live-card:has(input:focus-visible){outline:2px solid #1e838a;outline-offset:2px}
+/* Live titles start right after the mood icon instead of being centered on the sample text. */
+.design-root .diary-title-live{left:62px;translate:none;text-align:left;width:290px;overflow:hidden;text-overflow:ellipsis}
+.design-root .diary-title-input{outline:none;min-height:25px}
+.design-root [data-node-id="33:3939"][contenteditable]{min-height:200px;outline:none}
+.diary-live-list button:focus-visible,.live-calendar button:focus-visible{outline:2px solid #1e838a;outline-offset:2px}
+.design-root [contenteditable][data-placeholder]:empty::before{content:attr(data-placeholder);color:#b0b6b8;pointer-events:none}
+.design-root [data-node-id="28:3210"]{z-index:2}

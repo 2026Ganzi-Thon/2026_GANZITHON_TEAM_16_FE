@@ -8,9 +8,13 @@ import { useChat } from './features/chat/useChat';
 import { REQUIRED_TURNS } from './features/chat/types';
 import ChatThread from './components/ChatThread';
 import ArchiveList from './components/ArchiveList';
+import BirthDateField from './components/BirthDateField';
 import { characterCardNodes, characterCatalog, findCharacter } from './features/characters/catalog';
 import { useCharacters } from './features/characters/useCharacters';
 import CharacterScreen from './components/CharacterScreen';
+import { LiveCalendar, LiveDeleteList, LiveDiaryList } from './components/DiaryViews';
+import { diaryApi, todaySeoul, type Diary } from './features/diary/api';
+import { tokens } from './lib/http';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -37,11 +41,18 @@ const diaryDateParam = () => {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 };
 /** "2026-06-05" -> "2026년 6월 5일 금요일 기록", read as a calendar date (no UTC shift). */
-const diaryDateLabel = (value: string) => {
+const diaryDateLabelFor = (value: string) => {
   const [y, m, d] = value.split('-').map(Number);
   return `${new Date(y, m - 1, d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })} 기록`;
 };
 const sessionParam = () => new URLSearchParams(location.search).get('session');
+const diaryIdParam = () => new URLSearchParams(location.search).get('id');
+// Logged-in screens replace these Figma sample nodes with server data.
+const liveHiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
+  Diary: new Set(['155:225']),
+  Calendar: new Set(['26:2814', '155:1164']),
+  DeleteSelected: new Set(['113:993', '113:994']),
+};
 const characterParam = () => new URLSearchParams(location.search).get('character');
 
 const paths: Record<string, ScreenName> = {
@@ -68,6 +79,18 @@ export default function App() {
   const [viewSession, setViewSession] = useState<string | null>(sessionParam);
   const [showProgress, setShowProgress] = useState(false);
   const chat = useChat(screen === 'Chat', viewSession, setNotice);
+  // Logged in -> real API; logged out -> local preview data.
+  const [live, setLive] = useState(() => Boolean(tokens.get()));
+  useEffect(() => {
+    const changed = () => setLive(Boolean(tokens.get()));
+    addEventListener('mowoo:auth-change', changed);
+    return () => removeEventListener('mowoo:auth-change', changed);
+  }, []);
+  const [diaryId, setDiaryId] = useState<string | null>(diaryIdParam);
+  const [liveDiary, setLiveDiary] = useState<Diary | null>(null);
+  const [editor, setEditor] = useState({ title: '', content: '' });
+  const [busy, setBusy] = useState(false);
+  const [selectedDiaries, setSelectedDiaries] = useState<Set<string>>(new Set());
   useEffect(() => { if (profileError) setNotice(profileError); }, [profileError]);
   const [selected, setSelected] = useState<Set<string>>(new Set(['113:984']));
   const [savingSetting, setSavingSetting] = useState<string | null>(null);
@@ -86,7 +109,7 @@ export default function App() {
   const go = (next: ScreenName, replace = false) => {
     const path = Object.entries(paths).find(([, value]) => value === next)?.[0] ?? `/design/${next}`;
     if (location.pathname === path && !replace) return;
-    navigate(path, replace); setScreen(next); setNotice(''); setViewSession(null); setShowProgress(false);
+    navigate(path, replace); setScreen(next); setNotice(''); setViewSession(null); setShowProgress(false); setDiaryId(null);
     if (next === 'EditProfile') setDraft(profile);
   };
   const openSession = (id: string) => {
@@ -95,6 +118,35 @@ export default function App() {
   const openDiaryDate = (date: string) => {
     navigate(`/diary/detail?date=${date}`); setScreen('DiaryDetail'); setNotice(''); setViewSession(null); setShowProgress(false);
   };
+  const openDiary = (id: string, write = false, replace = false) => {
+    navigate(`/diary/${write ? 'write' : 'detail'}?id=${encodeURIComponent(id)}`, replace);
+    setDiaryId(id); setScreen(write ? 'DiaryEditor' : 'DiaryDetail'); setNotice(''); setViewSession(null); setShowProgress(false);
+  };
+  async function saveLiveDiary() {
+    const title = editor.title.trim(), content = editor.content.trim();
+    if (!title) { setNotice('제목을 입력해 주세요.'); return; }
+    if (!content) { setNotice('일기 내용을 입력해 주세요.'); return; }
+    if (busy) return;
+    setBusy(true);
+    try {
+      const saved = diaryId
+        ? await diaryApi.update(diaryId, { title, content, save: true })
+        : await diaryApi.create({ entryDate: todaySeoul(), title, content });
+      navigate(`/diary/saved?id=${encodeURIComponent(saved.id)}`, true); setDiaryId(saved.id); setScreen('DiarySaved');
+    } catch (error) { setNotice((error as Error).message); }
+    finally { setBusy(false); }
+  }
+  async function runLive(task: () => Promise<unknown>, next: ScreenName) {
+    if (busy) return;
+    setBusy(true);
+    try { await task(); go(next); } catch (error) { setNotice((error as Error).message); }
+    finally { setBusy(false); }
+  }
+  async function withdraw() {
+    if (!live) { setNotice('로그인한 계정에서만 탈퇴할 수 있어요.'); return; }
+    if (!confirm('계정을 삭제할까요? 모든 대화와 일기가 지워지고 되돌릴 수 없어요.')) return;
+    try { await diaryApi.withdraw(); tokens.clear(); go('Login', true); } catch (error) { setNotice((error as Error).message); }
+  }
   async function sendMessage() {
     const text = message.trim();
     if (!text || chat.pending || chat.closed) return;
@@ -104,10 +156,16 @@ export default function App() {
   async function generateDiary() {
     if (chat.closed || chat.pending) return;
     if (!chat.canGenerate) { setShowProgress(true); return; }
-    const lines = await chat.finish();
-    if (!lines) return;
-    // Local draft until the diary-draft API exists: the user's own words from this chat.
-    setDiaryText(lines.join('\n'));
+    const finished = await chat.finish();
+    if (!finished) return;
+    if (live) {
+      // Server AI draft (returns the existing diary if this chat already has one).
+      try { openDiary((await diaryApi.draftFromChat(finished.sessionId, todaySeoul())).id, true); }
+      catch (error) { setNotice((error as Error).message); }
+      return;
+    }
+    // Preview: a local draft from the user's own words in this chat.
+    setDiaryText(finished.lines.join('\n'));
     go('DiaryEditor');
   }
   const back = () => {
@@ -124,13 +182,36 @@ export default function App() {
     const previousRestoration = history.scrollRestoration;
     history.scrollRestoration = 'manual';
     const resize = () => setViewport({ width: innerWidth, height: innerHeight });
-    const pop = () => { setScreen(getScreen()); setViewSession(sessionParam()); setShowProgress(false); setNotice(''); };
+    const pop = () => { setScreen(getScreen()); setViewSession(sessionParam()); setDiaryId(diaryIdParam()); setShowProgress(false); setNotice(''); };
     addEventListener('resize', resize); addEventListener('popstate', pop);
     addEventListener('pagehide', rememberPosition);
     return () => { removeEventListener('resize', resize); removeEventListener('popstate', pop); removeEventListener('pagehide', rememberPosition); history.scrollRestoration = previousRestoration; };
   }, []);
   useEffect(() => { if (notice) { const timer = setTimeout(() => setNotice(''), 5000); return () => clearTimeout(timer); } }, [notice]);
-  useEffect(() => { if (screen === 'DiarySaved') { const timer = setTimeout(() => go('DiaryDetail', true), 1800); return () => clearTimeout(timer); } }, [screen]);
+  useEffect(() => {
+    if (screen !== 'DiarySaved') return;
+    const timer = setTimeout(() => (live && diaryId ? openDiary(diaryId, false, true) : go('DiaryDetail', true)), 1800);
+    return () => clearTimeout(timer);
+  }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Load the diary for the editor/detail; detail without an id shows the latest diary.
+  useEffect(() => {
+    if (!live || (screen !== 'DiaryEditor' && screen !== 'DiaryDetail')) { setLiveDiary(null); return; }
+    let active = true;
+    setLiveDiary(null);
+    if (!diaryId) {
+      setEditor({ title: '', content: '' });
+      if (screen === 'DiaryDetail') diaryApi.list({ limit: 1 }).then(page => {
+        if (!active) return;
+        if (page.items[0]) openDiary(page.items[0].id, false, true); else setNotice('아직 저장한 일기가 없어요.');
+      }).catch(error => active && setNotice(error.message));
+      return;
+    }
+    diaryApi.get(diaryId).then(diary => {
+      if (!active) return;
+      setLiveDiary(diary); setEditor({ title: diary.title, content: diary.content });
+    }).catch(error => active && setNotice(error.message));
+    return () => { active = false; };
+  }, [live, screen, diaryId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { if (attachment) URL.revokeObjectURL(attachment); }, [attachment]);
 
   async function saveProfile(next: Partial<Profile>) {
@@ -180,7 +261,8 @@ export default function App() {
   if (screen === 'Profile') {
     link(['130:801'], '내 정보 수정', 'EditProfile');
     actions['130:779'] = ['로그아웃', () => { void logout().then(() => go('Login')).catch(error => setNotice(error.message)); }];
-    ['130:780','130:786','130:787','130:789'].forEach(id => { actions[id] = ['메뉴 안내', () => setNotice('이 메뉴는 아직 연결되지 않았어요.')]; });
+    ['130:786','130:787','130:789'].forEach(id => { actions[id] = ['메뉴 안내', () => setNotice('이 메뉴는 아직 연결되지 않았어요.')]; });
+    actions['130:780'] = ['계정 삭제', () => { void withdraw(); }];
   }
   if (screen === 'EditProfile') actions['130:844'] = ['저장하기', () => { void submitProfile(); }];
   if (screen === 'Characters') characterCatalog.forEach(character => {
@@ -194,11 +276,11 @@ export default function App() {
     link(['28:3054','155:214'], '지난 일기 보기', 'DiaryDetail'); link(['28:3187','28:3211','155:143'], '마음 캘린더', 'Calendar');
   }
   if (screen === 'DiaryChoice') { link(['33:3928'], '모우와 대화하고 자동 기록하기', 'Chat'); link(['33:3927'], '직접 작성하기', 'DiaryEditor'); actions['227:138'] = ['닫기', back]; }
-  if (screen === 'DiaryEditor') actions['155:606'] = ['일기 저장', () => { if (diaryText) localStorage.setItem('mowoo.diary', diaryText); go('DiarySaved'); }];
-  if (screen === 'DiaryDetail') link(['113:2810'], '수정하기', 'DiaryEditor');
+  if (screen === 'DiaryEditor') actions['155:606'] = ['일기 저장', live ? () => { void saveLiveDiary(); } : () => { if (diaryText) localStorage.setItem('mowoo.diary', diaryText); go('DiarySaved'); }];
+  if (screen === 'DiaryDetail') actions['113:2810'] = ['수정하기', live && liveDiary ? () => openDiary(liveDiary.id, true) : () => go('DiaryEditor')];
   if (screen === 'Calendar') {
     link(['155:1138'], '일기 보기', 'DiaryDetail');
-    Object.entries(calendarCells).forEach(([id, day]) => {
+    if (!live) Object.entries(calendarCells).forEach(([id, day]) => {
       actions[id] = calendarRecordDays.has(day)
         ? [`${calendarMonth}월 ${day}일 기록 보기`, () => openDiaryDate(isoDate(day))]
         : [`${calendarMonth}월 ${day}일`, () => setNotice(`${calendarMonth}월 ${day}일에는 남긴 기록이 없어요.`)];
@@ -210,14 +292,22 @@ export default function App() {
     actions['130:598'] = ['이어서 대화하기', () => setShowProgress(false)];
     actions['130:563'] = ['안내 닫기', () => setShowProgress(false)];
   }
-  if (screen === 'DeleteAll') { actions['113:2992'] = ['취소', back]; link(['113:2991'], '모든 기록 삭제하기', 'Deleted'); }
-  if (screen === 'DeleteSelected') { actions['113:1363'] = ['취소', back]; actions['113:1362'] = ['선택된 기록 삭제하기', () => { if (selected.size) go('Deleted'); }]; }
+  if (screen === 'DeleteAll') {
+    actions['113:2992'] = ['취소', back];
+    actions['113:2991'] = ['모든 기록 삭제하기', live ? () => { void runLive(() => diaryApi.deleteAllRecords(), 'Deleted'); } : () => go('Deleted')];
+  }
+  if (screen === 'DeleteSelected') {
+    actions['113:1363'] = ['취소', back];
+    actions['113:1362'] = ['선택된 기록 삭제하기', live
+      ? () => { if (!selectedDiaries.size) { setNotice('삭제할 기록을 선택해 주세요.'); return; } void runLive(() => diaryApi.deleteDiaries([...selectedDiaries]).then(() => setSelectedDiaries(new Set())), 'Deleted'); }
+      : () => { if (selected.size) go('Deleted'); }];
+  }
   if (screen === 'Deleted') actions['120:396'] = ['닫기', () => go('MyPage', true)];
 
   function enhance(node: ReactNode): ReactNode {
     if (!isValidElement(node)) return node;
     const element = node as ReactElement<NodeProps>, props = element.props, id = props['data-node-id'] ?? '', name = props['data-name'] ?? '';
-    if (!previewOnly && hiddenNodes[screen]?.has(id)) return null;
+    if (!previewOnly && (hiddenNodes[screen]?.has(id) || (live && liveHiddenNodes[screen]?.has(id)))) return null;
     let children = Children.map(props.children, enhance);
     const extra: NodeProps = {};
     let action = actions[id];
@@ -234,7 +324,8 @@ export default function App() {
       const fields: Record<string, [keyof Profile, string]> = { '130:846':['nickname','닉네임'], '130:847':['email','이메일'], '130:848':['birthDate','생년월일'] };
       if (screen === 'EditProfile' && fields[id]) {
         const [field,label] = fields[id];
-        return <input key={id} data-node-id={id} className={`${props.className} profile-input`} aria-label={label} type={field === 'birthDate' ? 'date' : field === 'email' ? 'email' : 'text'} maxLength={field === 'nickname' ? 50 : 254} value={String(draft[field] ?? '')} onChange={e => setDraft({ ...draft, [field]: e.target.value })} />;
+        if (field === 'birthDate') return <BirthDateField key={id} nodeId={id} className={String(props.className ?? '')} label={label} value={String(draft.birthDate ?? '')} onChange={birthDate => setDraft({ ...draft, birthDate })} />;
+        return <input key={id} data-node-id={id} className={`${props.className} profile-input`} aria-label={label} type={field === 'email' ? 'email' : 'text'} maxLength={field === 'nickname' ? 50 : 254} value={String(draft[field] ?? '')} onChange={e => setDraft({ ...draft, [field]: e.target.value })} />;
       }
       if (screen === 'MyPage' && ['97:91','97:92'].includes(id)) {
         const field = id === '97:91' ? 'usePastDiaries' : 'eveningReminderEnabled';
@@ -249,10 +340,31 @@ export default function App() {
       }
       if (screen === 'Chat' && id === '130:593') children = [`대화 진행도(${Math.min(chat.turns, REQUIRED_TURNS)}/${REQUIRED_TURNS})`];
       if (screen === 'DiaryEditor' && id === '33:3939') {
-        Object.assign(extra, { contentEditable: true, suppressContentEditableWarning: true, role:'textbox', 'aria-label':'일기 내용', 'aria-multiline':true, onBlur: (e: React.FocusEvent<HTMLElement>) => setDiaryText(e.currentTarget.textContent ?? '') });
-        if (diaryText) children = [diaryText];
+        if (live) {
+          Object.assign(extra, { contentEditable: true, suppressContentEditableWarning: true, role:'textbox', 'aria-label':'일기 내용', 'aria-multiline':true, 'data-placeholder':'오늘 있었던 일과 마음을 적어 주세요.', key: `content-${liveDiary?.id ?? 'new'}`, onInput: (e: React.FormEvent<HTMLElement>) => { const content = e.currentTarget.innerText; setEditor(v => ({ ...v, content })); } });
+          children = [liveDiary?.content ?? (diaryId ? '' : '')];
+        } else {
+          Object.assign(extra, { contentEditable: true, suppressContentEditableWarning: true, role:'textbox', 'aria-label':'일기 내용', 'aria-multiline':true, onBlur: (e: React.FocusEvent<HTMLElement>) => setDiaryText(e.currentTarget.textContent ?? '') });
+          if (diaryText) children = [diaryText];
+        }
       }
-      if (screen === 'DiaryDetail' && id === '113:2809' && diaryText) children = [diaryText];
+      if (live && screen === 'DiaryEditor' && id === '155:632') {
+        Object.assign(extra, { contentEditable: true, suppressContentEditableWarning: true, role:'textbox', 'aria-label':'일기 제목', 'data-placeholder':'제목', key: `title-${liveDiary?.id ?? 'new'}`, className: `${extra.className ?? props.className ?? ''} diary-title-input diary-title-live`, onInput: (e: React.FormEvent<HTMLElement>) => { const title = e.currentTarget.innerText.replace(/\n/g, ' '); setEditor(v => ({ ...v, title })); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter') e.preventDefault(); } });
+        children = [liveDiary?.title ?? ''];
+      }
+      if (live && (screen === 'DiaryEditor' && id === '33:3938' || screen === 'DiaryDetail' && id === '113:2808')) children = [diaryDateLabelFor(liveDiary?.entryDate ?? todaySeoul())];
+      if (screen === 'DiaryDetail' && id === '113:2809') { if (live) children = [liveDiary?.content ?? '']; else if (diaryText) children = [diaryText]; }
+      if (live && screen === 'DiaryDetail' && id === '113:2807') { children = [liveDiary?.title ?? '']; extra.className = `${props.className ?? ''} diary-title-live`; }
+      if (live && screen === 'DiaryDetail' && id === '155:598') {
+        const photo = liveDiary?.attachments.find(a => a.mimeType.startsWith('image/'));
+        if (!photo) return null;
+        children = Children.map(children, child => isValidElement<{ src?: string }>(child) && child.type === 'img' ? cloneElement(child, { src: photo.url }) : child);
+      }
+      if (live && (screen === 'Diary' || screen === 'Calendar') && id === screens[screen].nodeId) {
+        children = [...(Children.toArray(children)), screen === 'Diary'
+          ? <LiveDiaryList key="live-diaries" top={599} onOpen={diaryId => openDiary(diaryId)} />
+          : <LiveCalendar key="live-calendar" onOpen={diaryId => openDiary(diaryId)} onNotice={setNotice} />];
+      }
       if (screen === 'CharacterDetail') {
         const character = findCharacter(characterParam());
         if (id === '120:389') children = Children.map(children, child => isValidElement<{ src?: string }>(child) && child.type === 'img' ? cloneElement(child, { src: character.image }) : child);
@@ -260,8 +372,8 @@ export default function App() {
         if (id === '120:460') children = [character.description];
         if (id === '120:332') extra.style = { ...props.style, '--to': character.tint } as CSSProperties;
       }
-      if (screen === 'DiaryDetail' && id === '113:2808') { const date = diaryDateParam(); if (date) children = [diaryDateLabel(date)]; }
-      if (screen === 'DeleteSelected' && name.startsWith('tabler:square-check')) {
+      if (!live && screen === 'DiaryDetail' && id === '113:2808') { const date = diaryDateParam(); if (date) children = [diaryDateLabelFor(date)]; }
+      if (!live && screen === 'DeleteSelected' && name.startsWith('tabler:square-check')) {
         const checked = selected.has(id);
         const recordNumber = ['113:983','113:984','113:1018','113:1032'].indexOf(id) + 1;
         return <button key={id} data-node-id={id} className={`${props.className} record-checkbox`} type="button" role="checkbox" aria-label={`기록 ${recordNumber} 선택`} aria-checked={checked} onClick={e => { e.stopPropagation(); setSelected(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }}><img src={checked ? '/assets/5c577.svg' : '/assets/5f4ae.svg'} alt="" /></button>;
@@ -293,6 +405,7 @@ export default function App() {
         />}
         {!previewOnly && screen === 'Chat' && showProgress && <div className="progress-layer" role="dialog" aria-modal="true" aria-label="대화 진행도">{progressModal()}</div>}
         {!previewOnly && screen === 'Archive' && <ArchiveList onOpen={openSession} onError={setNotice} />}
+        {!previewOnly && live && screen === 'DeleteSelected' && <LiveDeleteList selected={selectedDiaries} onToggle={id => setSelectedDiaries(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; })} />}
       </div>
     </main>
     <input ref={fileInput} type="file" accept="image/*" hidden onChange={e => { const file=e.target.files?.[0]; if(file){setAttachment(URL.createObjectURL(file));setNotice('사진을 선택했어요. 업로드 API 연결은 아직 필요해요.');} }} />

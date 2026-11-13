@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { chatApi } from './api';
-import { defaultCharacter } from './characters';
+import { chatApi, isLiveApi } from './api';
+import { defaultCharacter, resolveLiveCharacterId } from './characters';
 import { ChatApiError, type ChatMessage, type ChatSession } from './types';
 
-const activeKey = 'mowoo.chat.active';
-const readActive = () => { try { return localStorage.getItem(activeKey); } catch { return null; } };
+// Separate slots so a preview session id is never sent to the server and vice versa.
+const activeKey = () => (isLiveApi() ? 'mowoo.chat.active.live' : 'mowoo.chat.active');
+const readActive = () => { try { return localStorage.getItem(activeKey()); } catch { return null; } };
 const writeActive = (id: string | null) => {
-  try { if (id) localStorage.setItem(activeKey, id); else localStorage.removeItem(activeKey); } catch { /* ignore */ }
+  try { if (id) localStorage.setItem(activeKey(), id); else localStorage.removeItem(activeKey()); } catch { /* ignore */ }
 };
 
 export const errorMessage = (error: unknown) =>
-  error instanceof ChatApiError ? error.message : '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
+  error instanceof Error && error.message ? error.message : '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
 /** Merge pages by id and keep server order. */
 function merge(current: ChatMessage[], incoming: ChatMessage[]) {
@@ -47,7 +48,8 @@ export function useChat(enabled: boolean, viewSessionId: string | null, onError:
       })
       .catch(error => {
         if (cancelled) return;
-        if (!viewSessionId && error instanceof ChatApiError && error.code === 'SESSION_NOT_FOUND') writeActive(null);
+        // A stale resumed session (deleted, another account) is dropped quietly.
+        if (!viewSessionId && error instanceof ChatApiError && [400, 403, 404].includes(error.status)) writeActive(null);
         else onError(errorMessage(error));
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -74,7 +76,7 @@ export function useChat(enabled: boolean, viewSessionId: string | null, onError:
     try {
       let current = session;
       if (!current) {
-        current = await chatApi.createSession({ characterId: defaultCharacter.id });
+        current = await chatApi.createSession({ characterId: isLiveApi() ? await resolveLiveCharacterId() : defaultCharacter.id });
         writeActive(current.id);
         setSession(current);
       }
@@ -104,15 +106,19 @@ export function useChat(enabled: boolean, viewSessionId: string | null, onError:
     } finally { busy.current = false; }
   }, [session, onError]);
 
-  /** Ends the session and returns the user's side of the conversation for a diary draft. */
+  /** Ends the session; returns its id and the user's lines (the preview's local diary draft). */
   const finish = useCallback(async () => {
     if (!session || busy.current) return null;
     busy.current = true;
     try {
-      const ended = await chatApi.endSession(session.id);
+      try {
+        setSession(await chatApi.endSession(session.id));
+      } catch (error) {
+        // Already ended elsewhere is fine; the draft can still be made.
+        if (!(error instanceof ChatApiError && error.code === 'SESSION_CLOSED')) throw error;
+      }
       writeActive(null);
-      setSession(ended);
-      return messages.filter(m => m.senderRole === 'USER').map(m => m.content);
+      return { sessionId: session.id, lines: messages.filter(m => m.senderRole === 'USER').map(m => m.content) };
     } catch (error) {
       onError(errorMessage(error));
       return null;
