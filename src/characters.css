@@ -1,0 +1,12 @@
+.character-screen{position:relative;width:393px;height:100%;background:linear-gradient(150deg,#fffef3,#ecfff5 60%,#e5fbfa);color:#223037}
+.character-header{height:104px;display:flex;align-items:center;justify-content:center;background:#fff;border-bottom:1px solid #e7efea;position:relative}
+.character-header h1{font-size:20px;font-weight:600}.character-header button{position:absolute;left:16px;width:44px;height:44px;background:transparent;font-size:34px}
+.character-content{position:absolute;top:104px;bottom:0;width:100%;padding:32px 24px;overflow-y:auto;overscroll-behavior:contain}
+.character-intro{font-size:14px;color:#526d64;margin-bottom:36px;line-height:1.6}.character-content h2{font-size:18px;margin:28px 0 18px}
+.character-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.character-card{background:linear-gradient(#fff,var(--character-tint));border:1px solid #d5eee2;border-radius:20px;padding:12px 6px;min-width:0;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 3px 10px #174d8308}
+.character-card img{height:96px;width:100%;object-fit:contain}.character-card strong{font-size:13px;line-height:1.5;overflow-wrap:anywhere}.character-card span{font-size:11px;color:#526d64;line-height:1.5}
+.character-empty{font-size:14px;color:#65796f;padding:20px 0}.character-backdrop{position:absolute;inset:0;background:#22303766;display:flex;align-items:center;justify-content:center;padding:24px;z-index:5}
+.character-dialog{position:relative;border-radius:24px;background:linear-gradient(#fff,#edfff6);padding:54px 24px 28px;width:100%;max-height:85%;overflow-y:auto;text-align:center;box-shadow:0 12px 36px #22303722}
+.character-dialog>img{height:170px;width:100%;object-fit:contain;margin-bottom:20px}.character-dialog h2{font-size:22px;margin:12px 0 16px}.character-close{position:absolute;top:12px;right:12px;width:36px;height:36px;background:transparent;font-size:30px}
+.character-description{font-size:15px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}.character-ownership{font-size:13px;color:#526d64;margin:20px 0 12px}.character-primary{border-radius:16px;background:#1e838a;color:#fff;padding:13px 18px;min-height:44px;font-size:14px;margin-top:12px;line-height:1.5}.character-primary:disabled{cursor:default;background:#dce7e3;color:#526d64}
+.character-screen button:focus-visible{outline:3px solid #1e838a;outline-offset:3px}

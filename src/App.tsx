@@ -9,6 +9,8 @@ import { REQUIRED_TURNS } from './features/chat/types';
 import ChatThread from './components/ChatThread';
 import ArchiveList from './components/ArchiveList';
 import { characterCardNodes, characterCatalog, findCharacter } from './features/characters/catalog';
+import { useCharacters } from './features/characters/useCharacters';
+import CharacterScreen from './components/CharacterScreen';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -75,6 +77,7 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const previewOnly = location.pathname.startsWith('/design/');
+  const characterState = useCharacters(!previewOnly && (screen === 'Characters' || screen === 'CharacterDetail'), screen === 'CharacterDetail' ? characterParam() ?? 'kind' : null);
   const { startLogin, logout } = useAuth({
     onAuthenticated: () => { navigate('/home', true); setScreen('Home'); },
     onError: setNotice,
@@ -278,7 +281,11 @@ export default function App() {
   return <>
     <main className="screen-viewport" style={{width:393*scale,height:height*scale}}>
       <div ref={stage} className="screen-stage" style={{height,transform:`scale(${scale})`}}>
-        {enhance(Component())}
+        {!previewOnly && characterState.authenticated && (screen === 'Characters' || screen === 'CharacterDetail')
+          ? <CharacterScreen state={characterState} showDetail={screen === 'CharacterDetail'} onBack={back} onOpen={id => {
+            navigate(`/characters/detail?character=${encodeURIComponent(id)}`); setScreen('CharacterDetail'); setNotice('');
+          }} />
+          : enhance(Component())}
         {!previewOnly && screen === 'Chat' && <ChatThread
           messages={chat.messages} pending={chat.pending} loading={chat.loading} closed={chat.closed}
           hasOlder={chat.hasOlder} editableId={chat.editableId} onLoadOlder={chat.loadOlder} onEdit={chat.edit}

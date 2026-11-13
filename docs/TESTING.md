@@ -1,5 +1,7 @@
 # 화면과 검증
 
+캐릭터 HTTP 연동 검사는 `npm run check:character-api`로 실행합니다. 서버 응답·보유 여부·선택 UUID·계정 전환·오류 복구를 모의 API로 확인합니다. 상세 범위는 [캐릭터 연동 가이드](CHARACTER_API.md)를 참고하세요.
+
 ## 화면 주소
 
 | 경로 | 화면 |
