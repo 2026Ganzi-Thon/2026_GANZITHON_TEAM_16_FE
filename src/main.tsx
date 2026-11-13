@@ -10,4 +10,5 @@ import './styles.css';
 import './design.css';
 import './chat.css';
 import './characters.css';
+import './date-picker.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

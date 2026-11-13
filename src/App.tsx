@@ -8,6 +8,7 @@ import { useChat } from './features/chat/useChat';
 import { REQUIRED_TURNS } from './features/chat/types';
 import ChatThread from './components/ChatThread';
 import ArchiveList from './components/ArchiveList';
+import BirthDateField from './components/BirthDateField';
 import { characterCardNodes, characterCatalog, findCharacter } from './features/characters/catalog';
 import { useCharacters } from './features/characters/useCharacters';
 import CharacterScreen from './components/CharacterScreen';
@@ -234,7 +235,8 @@ export default function App() {
       const fields: Record<string, [keyof Profile, string]> = { '130:846':['nickname','닉네임'], '130:847':['email','이메일'], '130:848':['birthDate','생년월일'] };
       if (screen === 'EditProfile' && fields[id]) {
         const [field,label] = fields[id];
-        return <input key={id} data-node-id={id} className={`${props.className} profile-input`} aria-label={label} type={field === 'birthDate' ? 'date' : field === 'email' ? 'email' : 'text'} maxLength={field === 'nickname' ? 50 : 254} value={String(draft[field] ?? '')} onChange={e => setDraft({ ...draft, [field]: e.target.value })} />;
+        if (field === 'birthDate') return <BirthDateField key={id} nodeId={id} className={String(props.className ?? '')} label={label} value={String(draft.birthDate ?? '')} onChange={birthDate => setDraft({ ...draft, birthDate })} />;
+        return <input key={id} data-node-id={id} className={`${props.className} profile-input`} aria-label={label} type={field === 'email' ? 'email' : 'text'} maxLength={field === 'nickname' ? 50 : 254} value={String(draft[field] ?? '')} onChange={e => setDraft({ ...draft, [field]: e.target.value })} />;
       }
       if (screen === 'MyPage' && ['97:91','97:92'].includes(id)) {
         const field = id === '97:91' ? 'usePastDiaries' : 'eveningReminderEnabled';
