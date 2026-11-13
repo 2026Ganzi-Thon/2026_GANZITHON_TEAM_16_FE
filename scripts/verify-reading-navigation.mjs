@@ -50,11 +50,20 @@ try {
     await page.getByRole('button',{name:'지난 일기 보기',exact:true}).first().click();
     await back('/diary');
     await open('/home');
+    // The archive lists stored chats, so seed one ended session in the local chat store.
+    await page.evaluate(()=>{
+      const id='00000000-0000-4000-8000-000000000001',at='2026-11-06T09:00:00.000Z';
+      const message=(n,role,content)=>({id:`${id.slice(0,-1)}${n+1}`,sequenceNo:n,senderRole:role,characterId:role==='USER'?null:'local-mowoo-kind',content,createdAt:at,editedAt:null,diaryReferences:[]});
+      localStorage.setItem('mowoo.chat.v1',JSON.stringify({sessions:[{id,characterId:'local-mowoo-kind',title:null,summary:null,startedAt:at,endedAt:at,completedTurns:1,canGenerateDiary:false}],messages:{[id]:[message(1,'USER','면접이 걱정돼'),message(2,'ASSISTANT','다정한 모우가 듣고 있어요.')]}}));
+    });
     await page.getByRole('button',{name:'대화 보관함',exact:true}).click();
-    await page.getByRole('button',{name:'대화 보기',exact:true}).first().click();
+    await page.locator('.archive-card').first().click();
+    await page.waitForURL('**/chat?session=*');
+    assert.equal(await page.locator('.chat-bubble-user').first().textContent(),'면접이 걱정돼');
+    assert(await page.getByRole('textbox',{name:'메시지'}).isDisabled(),'Ended chats must not accept new messages.');
     await back('/archive');await back('/home');
     await page.getByRole('button',{name:'캐릭터 선택',exact:true}).click();
-    await page.getByRole('button',{name:'캐릭터 상세보기',exact:true}).first().click();
+    await page.getByRole('button',{name:'다정한 모우 상세보기',exact:true}).first().click();
     await checkScroll('[data-node-id="120:460"]');
     await page.screenshot({path:`.local/reading-navigation/character-bottom-${width}.png`,fullPage:true});
     await page.getByRole('button',{name:'닫기',exact:true}).click();await page.waitForURL('**/characters');

@@ -29,7 +29,7 @@ try {
  await page.getByRole('button',{name:'모든 기록 삭제',exact:true}).click();
  await page.getByRole('button',{name:'취소',exact:true}).click();await page.waitForURL('**/mypage');
  await page.goto(base+'/characters');
- await page.getByRole('button',{name:'캐릭터 상세보기',exact:true}).first().click();
+ await page.getByRole('button',{name:'다정한 모우 상세보기',exact:true}).first().click();
  await page.getByRole('button',{name:'닫기',exact:true}).click();await page.waitForURL('**/characters');
  console.log('PASS: navigation, profile persistence, settings toggle, diary edit/save, delete cancel, character modal.');
 } finally {await browser.close();}
