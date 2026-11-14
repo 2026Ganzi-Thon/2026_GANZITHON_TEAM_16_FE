@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { characterName, defaultCharacter } from '../features/chat/characters';
+import { defaultCharacter } from '../features/chat/characters';
+import { characterApi } from '../features/characters/api';
+import { characterCatalog } from '../features/characters/catalog';
+import { isLiveApi } from '../features/chat/api';
 import type { ChatMessage } from '../features/chat/types';
 
 interface Props {
@@ -12,12 +15,26 @@ interface Props {
   onLoadOlder: () => Promise<void>;
   onEdit: (messageId: string, content: string) => Promise<boolean>;
   onCharacter: () => void;
+  activeCharacterId?: string | null;
 }
 
-export default function ChatThread({ messages, pending, loading, closed, hasOlder, editableId, onLoadOlder, onEdit, onCharacter }: Props) {
+export default function ChatThread({ messages, pending, loading, closed, hasOlder, editableId, onLoadOlder, onEdit, onCharacter, activeCharacterId }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const keepFromBottom = useRef<number | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string; saving: boolean } | null>(null);
+  const [portraits, setPortraits] = useState<Record<string, { name: string; image: string; fallback: string }>>({});
+  useEffect(() => {
+    if (!isLiveApi()) return;
+    const controller = new AbortController();
+    characterApi.list(controller.signal).then(({ items }) => {
+      if (controller.signal.aborted) return;
+      setPortraits(Object.fromEntries(items.map(item => {
+        const fallback = characterCatalog.find(character => character.key === item.code.toLowerCase())?.image ?? defaultCharacter.image;
+        return [item.id, { name: item.name, image: item.imageUrl || fallback, fallback }];
+      })));
+    }).catch(() => { /* A missing portrait must not prevent reading saved messages. */ });
+    return () => controller.abort();
+  }, []);
 
   // New messages scroll to the bottom; older pages keep the reader's position.
   useLayoutEffect(() => {
@@ -44,15 +61,22 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
     setEditing(ok ? null : { ...editing, saving: false });
   }
 
-  const assistantHeader = (name: string) => (
+  const assistantHeader = (characterId: string | null | undefined) => {
+    const character = characterId ? portraits[characterId] : undefined;
+    const preview = !isLiveApi();
+    return (
     <div className="chat-assistant-head">
-      <img src={defaultCharacter.image} alt="" className="chat-avatar" />
+      {character || preview ? <img src={character?.image ?? defaultCharacter.image} alt="" className="chat-avatar" onError={event => {
+        const fallback = character?.fallback ?? defaultCharacter.image;
+        if (event.currentTarget.getAttribute('src') !== fallback) event.currentTarget.src = fallback;
+      }} /> : <span className="chat-avatar" aria-hidden="true" />}
       <button type="button" className="chat-character" onClick={onCharacter}>
-        {name}
+        {character?.name ?? (preview ? defaultCharacter.name : '모우')}
         <img src="/assets/5baa7.svg" alt="" />
       </button>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="chat-thread" ref={scroller} data-scroll-key="chat-thread" role="log" aria-label="대화 내용" aria-busy={loading || pending !== null}>
@@ -87,14 +111,14 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
         </div>
       ) : (
         <div key={message.id} className="chat-row">
-          {assistantHeader(characterName(message.characterId))}
+          {assistantHeader(message.characterId)}
           <p className="chat-bubble-assistant">{message.content}</p>
         </div>
       ))}
       {pending && <>
         <div className="chat-row chat-row-user"><p className="chat-bubble-user is-pending">{pending}</p></div>
         <div className="chat-row">
-          {assistantHeader(defaultCharacter.name)}
+          {assistantHeader(activeCharacterId)}
           <p className="chat-bubble-assistant chat-typing" aria-label="답변을 기다리는 중"><span /><span /><span /></p>
         </div>
       </>}

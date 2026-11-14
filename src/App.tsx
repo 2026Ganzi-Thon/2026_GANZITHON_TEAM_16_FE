@@ -15,6 +15,7 @@ import CharacterScreen from './components/CharacterScreen';
 import { LiveCalendar, LiveDeleteList, LiveDiaryList } from './components/DiaryViews';
 import { diaryApi, todaySeoul, type Diary } from './features/diary/api';
 import { tokens } from './lib/http';
+import { membership, useMyPageStats } from './features/profile/useMyPageStats';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -49,8 +50,8 @@ const sessionParam = () => new URLSearchParams(location.search).get('session');
 const diaryIdParam = () => new URLSearchParams(location.search).get('id');
 // Logged-in screens replace these Figma sample nodes with server data.
 const liveHiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
-  Diary: new Set(['155:225']),
-  Calendar: new Set(['26:2814', '155:1164']),
+  Diary: new Set(['155:225', '28:3210']),
+  Calendar: new Set(['26:2814', '155:1164', '199:138']),
   DeleteSelected: new Set(['113:993', '113:994']),
 };
 const characterParam = () => new URLSearchParams(location.search).get('character');
@@ -81,6 +82,7 @@ export default function App() {
   const chat = useChat(screen === 'Chat', viewSession, setNotice);
   // Logged in -> real API; logged out -> local preview data.
   const [live, setLive] = useState(() => Boolean(tokens.get()));
+  const myPageStats = useMyPageStats(live && screen === 'MyPage' && !location.pathname.startsWith('/design/'));
   useEffect(() => {
     const changed = () => setLive(Boolean(tokens.get()));
     addEventListener('mowoo:auth-change', changed);
@@ -100,7 +102,9 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const previewOnly = location.pathname.startsWith('/design/');
-  const characterState = useCharacters(!previewOnly && (screen === 'Characters' || screen === 'CharacterDetail'), screen === 'CharacterDetail' ? characterParam() ?? 'kind' : null);
+  const characterState = useCharacters(!previewOnly && (screen === 'Home' || screen === 'Characters' || screen === 'CharacterDetail'), screen === 'CharacterDetail' ? characterParam() ?? 'kind' : null);
+  const homeCharacter = characterState.items.find(item => item.id === characterState.selectedId && item.isOwned)
+    ?? characterState.items.find(item => item.isOwned);
   const { startLogin, logout } = useAuth({
     onAuthenticated: () => { navigate('/home', true); setScreen('Home'); },
     onError: setNotice,
@@ -132,6 +136,7 @@ export default function App() {
       const saved = diaryId
         ? await diaryApi.update(diaryId, { title, content, save: true })
         : await diaryApi.create({ entryDate: todaySeoul(), title, content });
+      setLiveDiary(saved);
       navigate(`/diary/saved?id=${encodeURIComponent(saved.id)}`, true); setDiaryId(saved.id); setScreen('DiarySaved');
     } catch (error) { setNotice((error as Error).message); }
     finally { setBusy(false); }
@@ -195,7 +200,8 @@ export default function App() {
   }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Load the diary for the editor/detail; detail without an id shows the latest diary.
   useEffect(() => {
-    if (!live || (screen !== 'DiaryEditor' && screen !== 'DiaryDetail')) { setLiveDiary(null); return; }
+    if (!live || (screen !== 'DiaryEditor' && screen !== 'DiaryDetail' && screen !== 'DiarySaved')) { setLiveDiary(null); return; }
+    if (screen === 'DiarySaved' && liveDiary?.id === diaryId) return;
     let active = true;
     setLiveDiary(null);
     if (!diaryId) {
@@ -319,6 +325,23 @@ export default function App() {
     if (name === 'tabler:microphone') action = ['음성 입력', () => setNotice('음성 입력은 아직 연결되지 않았어요.')];
     if (action) { const [label, run] = action; Object.assign(extra, { role: 'button', tabIndex: 0, 'aria-label': label, className: `${props.className ?? ''} design-action`, onClick: (e: React.MouseEvent) => { e.stopPropagation(); run(); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); run(); } } }); }
     if (!previewOnly) {
+      if (live && screen === 'MyPage') {
+        const values: Record<string, number | undefined> = {
+          '33:3991': myPageStats.stats?.diaryCount,
+          '33:3978': myPageStats.stats?.conversationCount,
+          '33:3984': myPageStats.stats?.streak,
+        };
+        if (id in values) {
+          children = [values[id] === undefined ? (myPageStats.error ? '—' : '…') : String(values[id])];
+          extra.title = myPageStats.error || (id === '33:3978' ? '사용자와 모우가 한 번 이상 주고받은 대화 수' : id === '33:3984' ? '오늘 또는 어제부터 이어진 저장 일기의 연속 날짜 수' : '저장한 일기 수 (초안 제외)');
+        }
+        if (id === '33:3973') {
+          const joined = membership(profile.createdAt);
+          extra.className = `${props.className ?? ''} mypage-membership`;
+          children = [<p key="joined">{joined?.label ?? '가입일 정보 없음'}</p>, <p key="days">{joined ? `함께한 지 ${joined.days}일` : ''}</p>];
+        }
+        if (id === '33:4038' && myPageStats.error) children = [...Children.toArray(children), <button key="retry-stats" type="button" className="mypage-stats-retry" onClick={myPageStats.retry}>{myPageStats.error} · 다시 시도</button>];
+      }
       const texts: Record<string, string> = { '130:769': profile.nickname, '130:777': profile.email ?? '', '130:776': profile.birthDate ? new Date(`${profile.birthDate}T00:00:00`).toLocaleDateString('ko-KR', { year:'numeric',month:'long',day:'numeric' }) : '', '33:3972': profile.nickname };
       if (id in texts) { children = [texts[id]]; extra.title = texts[id]; }
       const fields: Record<string, [keyof Profile, string]> = { '130:846':['nickname','닉네임'], '130:847':['email','이메일'], '130:848':['birthDate','생년월일'] };
@@ -354,16 +377,38 @@ export default function App() {
       }
       if (live && (screen === 'DiaryEditor' && id === '33:3938' || screen === 'DiaryDetail' && id === '113:2808')) children = [diaryDateLabelFor(liveDiary?.entryDate ?? todaySeoul())];
       if (screen === 'DiaryDetail' && id === '113:2809') { if (live) children = [liveDiary?.content ?? '']; else if (diaryText) children = [diaryText]; }
+      if (screen === 'DiarySaved') {
+        if (id === '155:850') {
+          children = [live ? liveDiary?.title ?? '' : '오늘의 기록'];
+          extra.className = `${props.className ?? ''} diary-title-live`;
+          extra.style = { ...props.style, fontSize: 18, fontWeight: 600 };
+        }
+        if (id === '155:852') children = [live ? liveDiary?.content ?? '' : diaryText];
+        if (id === '155:851') children = [diaryDateLabelFor(live ? liveDiary?.entryDate ?? todaySeoul() : todaySeoul())];
+      }
       if (live && screen === 'DiaryDetail' && id === '113:2807') { children = [liveDiary?.title ?? '']; extra.className = `${props.className ?? ''} diary-title-live`; }
       if (live && screen === 'DiaryDetail' && id === '155:598') {
         const photo = liveDiary?.attachments.find(a => a.mimeType.startsWith('image/'));
         if (!photo) return null;
         children = Children.map(children, child => isValidElement<{ src?: string }>(child) && child.type === 'img' ? cloneElement(child, { src: photo.url }) : child);
       }
+      if (live && screen === 'Diary' && id === '28:3049') extra.style = { ...props.style, height: Math.max(342, flowHeight - 510) };
+      if (live && screen === 'Calendar' && id === '26:2993') extra.style = { ...props.style, height: Math.max(367, flowHeight - 507) };
       if (live && (screen === 'Diary' || screen === 'Calendar') && id === screens[screen].nodeId) {
+        extra.className = `${props.className ?? ''} record-flow-page record-flow-${screen.toLowerCase()}`;
         children = [...(Children.toArray(children)), screen === 'Diary'
           ? <LiveDiaryList key="live-diaries" top={599} onOpen={diaryId => openDiary(diaryId)} />
           : <LiveCalendar key="live-calendar" onOpen={diaryId => openDiary(diaryId)} onNotice={setNotice} />];
+      }
+      if (screen === 'Home' && characterState.authenticated) {
+        if (id === '10:503') children = [homeCharacter?.name ?? (characterState.loading ? '불러오는 중' : '캐릭터 선택')];
+        if (id === '10:480' && homeCharacter) {
+          const fallback = characterCatalog.find(item => item.key === homeCharacter.code.toLowerCase())?.image ?? characterCatalog[0].image;
+          children = Children.map(children, child => isValidElement<{ src?: string; onError?: React.ReactEventHandler<HTMLImageElement> }>(child) && child.type === 'img'
+            ? cloneElement(child, { src: homeCharacter.imageUrl || fallback, onError: event => {
+              if (event.currentTarget.getAttribute('src') !== fallback) event.currentTarget.src = fallback;
+            } }) : child);
+        }
       }
       if (screen === 'CharacterDetail') {
         const character = findCharacter(characterParam());
@@ -387,14 +432,43 @@ export default function App() {
     return enhance(cloneElement(root, {}, modal));
   }
   const { Component, height } = screens[screen];
+  const flowPage = !previewOnly && live && (screen === 'Diary' || screen === 'Calendar');
+  const [flowHeight, setFlowHeight] = useState<number>(height);
+  const [floatingBottom, setFloatingBottom] = useState(32);
+  useLayoutEffect(() => {
+    if (!flowPage || !stage.current) return;
+    const node = stage.current;
+    const update = () => setFlowHeight(node.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [flowPage, screen]);
   // Single-page designs (login, modals, chat) shrink to fit a short window so their
   // bottom buttons stay visible; long scrolling pages (Home, MyPage) fit width only.
-  const scale = Math.min(1, viewport.width / 393, height <= 900 ? viewport.height / height : 1);
+  const scale = Math.min(1, viewport.width / 393, !flowPage && height <= 900 ? viewport.height / height : 1);
+  useLayoutEffect(() => {
+    if (!flowPage || screen !== 'Diary') return;
+    const update = () => {
+      const pageBottom = stage.current?.closest('main')?.getBoundingClientRect().bottom ?? innerHeight;
+      // Float inside the visible app/panel, including when its bottom is above the viewport edge.
+      setFloatingBottom(Math.max(32, innerHeight - pageBottom + 32));
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => { window.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
+  }, [flowPage, screen, flowHeight, scale]);
   return <>
-    <main className="screen-viewport" style={{width:393*scale,height:height*scale}}>
-      <div ref={stage} className="screen-stage" style={{height,transform:`scale(${scale})`}}>
+    <main className="screen-viewport" style={{width:393*scale,height:(flowPage ? flowHeight : height)*scale}}>
+      <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : height,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`}}>
         {!previewOnly && characterState.authenticated && (screen === 'Characters' || screen === 'CharacterDetail')
-          ? <CharacterScreen state={characterState} showDetail={screen === 'CharacterDetail'} onBack={back} onOpen={id => {
+          ? <CharacterScreen state={characterState} showDetail={screen === 'CharacterDetail'} onBack={back} onChat={() => {
+            // Start with the chosen character rather than resume an unrelated active chat.
+            // Only the resume pointer is cleared; stored conversations remain in the archive.
+            localStorage.removeItem('mowoo.chat.active.live');
+            go('Chat');
+          }} onOpen={id => {
             navigate(`/characters/detail?character=${encodeURIComponent(id)}`); setScreen('CharacterDetail'); setNotice('');
           }} />
           : enhance(Component())}
@@ -402,12 +476,16 @@ export default function App() {
           messages={chat.messages} pending={chat.pending} loading={chat.loading} closed={chat.closed}
           hasOlder={chat.hasOlder} editableId={chat.editableId} onLoadOlder={chat.loadOlder} onEdit={chat.edit}
           onCharacter={() => go('Characters')}
+          activeCharacterId={chat.session?.characterId ?? homeCharacter?.id}
         />}
         {!previewOnly && screen === 'Chat' && showProgress && <div className="progress-layer" role="dialog" aria-modal="true" aria-label="대화 진행도">{progressModal()}</div>}
         {!previewOnly && screen === 'Archive' && <ArchiveList onOpen={openSession} onError={setNotice} />}
         {!previewOnly && live && screen === 'DeleteSelected' && <LiveDeleteList selected={selectedDiaries} onToggle={id => setSelectedDiaries(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; })} />}
       </div>
     </main>
+    {flowPage && screen === 'Diary' && <button type="button" className="diary-create-floating" style={{ bottom: floatingBottom }} aria-label="오늘을 기록하러 가기" onClick={() => go('DiaryChoice')}>
+      <img src="/assets/6349b.svg" alt="" />
+    </button>}
     <input ref={fileInput} type="file" accept="image/*" hidden onChange={e => { const file=e.target.files?.[0]; if(file){setAttachment(URL.createObjectURL(file));setNotice('사진을 선택했어요. 업로드 API 연결은 아직 필요해요.');} }} />
     {notice && <div className="notice" role="status">{notice}</div>}
   </>;

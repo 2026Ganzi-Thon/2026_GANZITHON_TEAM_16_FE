@@ -15,6 +15,7 @@
     "check:auth": "node scripts/verify-auth.mjs",
     "check:profile-api": "node scripts/verify-profile-api.mjs",
     "check:character-api": "node scripts/verify-character-api.mjs",
+    "check:mypage-stats": "node scripts/verify-mypage-stats.mjs",
     "check:record-api": "node scripts/verify-record-api.mjs"
   },
   "dependencies": {

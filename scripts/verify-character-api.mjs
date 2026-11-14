@@ -56,7 +56,7 @@ try {
   await page.getByRole('button', { name: '이 모우 선택하기', exact: true }).click();
   assert.deepEqual(await page.evaluate(() => JSON.parse(sessionStorage.getItem('mowoo.selectedCharacter'))), { owner: 'owner-a', id: ids[0] });
   await page.reload();
-  await page.getByRole('button', { name: '선택된 모우예요', exact: true }).waitFor();
+  await page.getByRole('button', { name: '대화하러 가기', exact: true }).waitFor();
   await page.keyboard.press('Escape');
   await page.waitForURL(base + '/characters');
   await page.screenshot({ path: '.local/character-api/list-393.png', fullPage: true });
@@ -64,9 +64,65 @@ try {
   await page.getByRole('dialog').getByText('상세 응답: 서버 냉철한 모우', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: '보유한 캐릭터만 선택할 수 있어요' }).isDisabled(), true);
   await page.screenshot({ path: '.local/character-api/detail-393.png', fullPage: true });
+  // Selected character must update both the home label and portrait, including after reload.
+  items = items.map(item => item.id === ids[1] ? { ...item, isOwned: true } : item);
+  await page.goto(base + '/home');
+  await page.locator('[data-node-id="10:503"]').filter({ hasText: '서버 다정한 모우' }).waitFor();
+  await page.getByRole('button', { name: '캐릭터 선택', exact: true }).click();
+  await page.getByRole('button', { name: '서버 냉철한 모우 상세보기', exact: true }).click();
+  await page.getByRole('button', { name: '이 모우 선택하기', exact: true }).click();
+  await page.getByRole('button', { name: '닫기', exact: true }).click();
+  await page.getByRole('button', { name: '뒤로 가기', exact: true }).click();
+  await page.waitForURL(base + '/home');
+  await page.locator('[data-node-id="10:503"]').filter({ hasText: '서버 냉철한 모우' }).waitFor();
+  assert.equal(await page.locator('[data-node-id="10:480"] img').getAttribute('src'), '/assets/a4467.png');
+  await page.reload();
+  await page.locator('[data-node-id="10:503"]').filter({ hasText: '서버 냉철한 모우' }).waitFor();
+  assert.equal(await page.locator('[data-node-id="10:480"] img').getAttribute('src'), '/assets/a4467.png');
+  await page.screenshot({ path: '.local/character-api/home-cool-393.png', fullPage: true });
+  let startedWith = null;
+  await page.route('**/api/v1/chat-sessions**', route => {
+    const path = new URL(route.request().url()).pathname;
+    assert.equal(path, '/api/v1/chat-sessions', 'must not resume the previous character session');
+    assert.equal(route.request().method(), 'POST');
+    startedWith = route.request().postDataJSON().characterId;
+    return route.fulfill({ status: 503, json: { error: { code: 'AI_UNAVAILABLE', message: '검증용 대화 생성 응답' } } });
+  });
+  await page.evaluate(() => localStorage.setItem('mowoo.chat.active.live', 'previous-character-session'));
+  await page.getByRole('button', { name: '캐릭터 선택', exact: true }).click();
+  await page.getByRole('button', { name: '서버 냉철한 모우 상세보기', exact: true }).click();
+  await page.getByRole('button', { name: '대화하러 가기', exact: true }).click();
+  await page.waitForURL(base + '/chat');
+  assert.equal(await page.evaluate(() => localStorage.getItem('mowoo.chat.active.live')), null);
+  await page.getByRole('textbox', { name: '메시지', exact: true }).fill('냉철한 모우와 이야기할래');
+  await page.getByRole('button', { name: '메시지 보내기', exact: true }).click();
+  await page.getByRole('status').filter({ hasText: '검증용 대화 생성 응답' }).waitFor();
+  assert.equal(startedWith, ids[1]);
+  await page.unroute('**/api/v1/chat-sessions**');
+  await page.route('**/api/v1/chat-sessions/**', route => {
+    const sessionId = new URL(route.request().url()).pathname.split('/')[4];
+    const characterId = sessionId === 'saved-kind' ? ids[0] : ids[1];
+    return route.fulfill({ json: {
+      session: { id: sessionId, characterId, title: null, summary: null, startedAt: '2026-11-14T00:00:00Z', endedAt: null, completedTurns: 1, canGenerateDiary: false },
+      messages: { nextCursor: null, items: [{ id: 'reply', sequenceNo: 2, senderRole: 'ASSISTANT', characterId, content: '저장된 답변', createdAt: '2026-11-14T00:00:00Z', editedAt: null, diaryReferences: [] }] },
+    } });
+  });
+  await page.goto(base + '/chat?session=saved-cool');
+  await page.locator('.chat-character').filter({ hasText: '서버 냉철한 모우' }).waitFor();
+  assert.equal(await page.locator('.chat-avatar').getAttribute('src'), '/assets/a4467.png');
+  await page.reload();
+  await page.locator('.chat-character').filter({ hasText: '서버 냉철한 모우' }).waitFor();
+  assert.equal(await page.locator('.chat-avatar').getAttribute('src'), '/assets/a4467.png');
+  await page.screenshot({ path: '.local/character-api/chat-cool-393.png', fullPage: true });
+  // A saved kind-character chat keeps its own portrait even when cool is selected for new chats.
+  await page.goto(base + '/chat?session=saved-kind');
+  await page.locator('.chat-character').filter({ hasText: '서버 다정한 모우' }).waitFor();
+  assert.equal(await page.locator('.chat-avatar').getAttribute('src'), '/assets/35960.png');
+  await page.goto(base + '/characters/detail?character=kind');
+  await page.getByRole('button', { name: '이 모우 선택하기', exact: true }).click();
   // Direct legacy links resolve to a real UUID and use the detail endpoint.
   await page.goto(base + '/characters/detail?character=kind');
-  await page.getByRole('button', { name: '선택된 모우예요', exact: true }).waitFor();
+  await page.getByRole('button', { name: '대화하러 가기', exact: true }).waitFor();
   // Account changes discard the previous account's preference and refetch ownership.
   token = tokenFor('owner-b');
   await page.evaluate(nextToken => { sessionStorage.setItem('mowoo.accessToken', nextToken); window.dispatchEvent(new Event('mowoo:auth-change')); }, token);
