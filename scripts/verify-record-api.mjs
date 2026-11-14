@@ -101,6 +101,9 @@ try {
   const content = page.getByRole('textbox', { name: '일기 내용' });
   await content.click(); await page.keyboard.press('End'); await page.keyboard.type(' 덧붙임');
   await page.getByRole('button', { name: '일기 저장' }).click();
+  await page.waitForURL('**/diary/saved?id=*');
+  assert.equal(await page.locator('[data-node-id="155:852"]').textContent(), 'AI가 정리한 오늘의 일기 덧붙임');
+  assert(!(await page.locator('[data-node-id="155:852"]').textContent()).includes('여기엔 ai가'));
   await page.waitForURL('**/diary/detail?id=*', { timeout: 5000 });
   await page.locator('[data-node-id="113:2807"]', { hasText: 'AI가 쓴 제목' }).waitFor();
   await page.locator('[data-node-id="113:2809"]', { hasText: 'AI가 정리한 오늘의 일기 덧붙임' }).waitFor();
@@ -116,6 +119,10 @@ try {
   await page.getByRole('textbox', { name: '일기 제목' }).click(); await page.keyboard.type('직접 쓴 날');
   await page.getByRole('textbox', { name: '일기 내용' }).click(); await page.keyboard.type('직접 쓴 내용');
   await page.getByRole('button', { name: '일기 저장' }).click();
+  await page.waitForURL('**/diary/saved?id=*');
+  assert.equal(await page.locator('[data-node-id="155:852"]').textContent(), '직접 쓴 내용');
+  assert.equal(await page.locator('[data-node-id="155:850"]').textContent(), '직접 쓴 날');
+  await page.screenshot({ path: '.local/record-api/saved-393.png', fullPage: true });
   await page.waitForURL('**/diary/detail?id=*', { timeout: 5000 });
   await page.locator('[data-node-id="113:2807"]', { hasText: '직접 쓴 날' }).waitFor();
 
@@ -129,6 +136,48 @@ try {
   await page.getByRole('button', { name: `${Number(today.slice(5, 7))}월 ${day}일 기록 보기` }).click();
   await page.waitForURL('**/diary/detail?id=*');
   await open('/calendar'); await page.screenshot({ path: '.local/record-api/calendar-393.png', fullPage: true });
+
+  // Long lists must grow their paper and page rather than escape a fixed-height frame.
+  const extraIds = [];
+  for (let i = 0; i < 10; i++) {
+    const id = uuid(++seq); extraIds.push(id);
+    diaries.set(id, { id, sourceSessionId: null, entryDate: today, title: `추가 기록 ${i}`, content: '긴 목록의 마지막 기록까지 확인합니다.', savedAt: new Date().toISOString(), emotionConfirmedAt: null });
+  }
+  for (const width of [320, 393, 1280]) {
+    await page.setViewportSize({ width, height: 600 });
+    for (const path of ['/diary', '/calendar']) {
+      await open(path);
+      await page.waitForFunction(() => document.querySelectorAll('.record-flow-page .diary-card').length === 12);
+      await page.waitForFunction(() => {
+        const paper = document.querySelector('.record-flow-page .diary-live-list').getBoundingClientRect();
+        const cards = document.querySelectorAll('.record-flow-page .diary-card');
+        const last = cards[cards.length - 1].getBoundingClientRect();
+        return paper.bottom >= last.bottom && document.querySelector('main').getBoundingClientRect().bottom >= paper.bottom;
+      });
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      const panel = await page.locator(path === '/diary' ? '[data-node-id="28:3049"]' : '[data-node-id="26:2993"]').evaluate(node => {
+        const rect = node.getBoundingClientRect(), main = document.querySelector('main').getBoundingClientRect();
+        const cards = document.querySelectorAll('.record-flow-page .diary-card');
+        const last = cards[cards.length - 1].getBoundingClientRect();
+        return { border: getComputedStyle(node).borderLeftWidth, inset: rect.left - main.left, coversLast: rect.bottom >= last.bottom };
+      });
+      assert.equal(panel.border, '1px');
+      assert(panel.inset > 0 && panel.coversLast, 'original outer panel must remain visible and contain every record');
+      if (path === '/diary') {
+        const before = await page.locator('.diary-create-floating').boundingBox();
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        const after = await page.locator('.diary-create-floating').boundingBox();
+        assert(Math.abs(before.y - after.y) < 1);
+        assert(after.y >= 0 && after.y + after.height <= 600);
+        await page.locator('.diary-create-floating').click();
+        await page.waitForURL('**/diary/new');
+      }
+    }
+  }
+  await page.setViewportSize({ width: 393, height: 900 });
+  await open('/diary');
+  await page.screenshot({ path: '.local/record-api/diary-long-393.png', fullPage: true });
+  extraIds.forEach(id => diaries.delete(id));
 
   // 4. Selected delete, then delete all.
   await open('/records/select');

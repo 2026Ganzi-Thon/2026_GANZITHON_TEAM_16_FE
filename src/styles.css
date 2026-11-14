@@ -32,6 +32,9 @@ body{margin:0}p{margin:0}img{display:block}button,input,textarea{font:inherit;co
 .setting-switch:focus-visible,.record-checkbox:focus-visible{outline:2px solid #1e838a;outline-offset:3px}
 .setting-switch:focus:not(:focus-visible),.record-checkbox:focus:not(:focus-visible){outline:none}
 .notice{position:fixed;z-index:100;left:50%;bottom:24px;translate:-50% 0;width:max-content;max-width:calc(100% - 32px);border-radius:14px;background:#223037;color:white;font-size:14px;line-height:1.5;padding:12px 18px;box-shadow:0 4px 16px #0002}
+.mypage-stats-retry{position:absolute;top:367px;left:16px;width:361px;font-size:11px;background:#fff;color:#1e838a;line-height:1.5;padding:3px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2}
+.design-root .mypage-membership{line-height:1.45;max-width:190px}
+.mypage-membership>p{display:block;line-height:1.45;margin:0;white-space:nowrap}
 [contenteditable="true"]{overflow:auto;white-space:pre-wrap;cursor:text;scrollbar-width:thin}
 .design-root [data-name="tabler:check"]{pointer-events:none}
 .design-root [data-node-id="113:2809"],.design-root [data-node-id="120:460"],.design-root [data-node-id="33:3939"]{display:block;-webkit-line-clamp:unset;overflow-x:hidden;overflow-y:auto;text-overflow:clip;overscroll-behavior-y:contain;scrollbar-width:thin;touch-action:pan-y}
