@@ -91,6 +91,12 @@ try {
     }
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   }
+  await page.goto(base+'/chat');
+  await page.getByRole('button',{name:'홈으로 이동',exact:true}).click();
+  await page.waitForURL(base+'/home');
+  await page.goto(base+'/chat');
+  await page.getByRole('button',{name:'홈으로 이동',exact:true}).press('Enter');
+  await page.waitForURL(base+'/home');
   assert.deepEqual(errors,[]);
   console.log('PASS: full text scrolling, navigation history and scroll restoration; all three modal close controls share 16px insets and 30px size and close correctly at 320/393/1280px.');
 } finally {
