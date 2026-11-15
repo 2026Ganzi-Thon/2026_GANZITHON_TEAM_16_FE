@@ -1,5 +1,7 @@
 # 화면과 검증
 
+토큰 자동 갱신 검사는 `npm run check:auth-refresh`로 실행합니다. 모의 API를 사용하며, 세부 범위는 [인증 가이드](AUTH.md)를 참고하세요.
+
 대화·일기·캘린더·기록 삭제 연동 검사는 `npm run check:record-api`로 실행합니다([API 연동 현황](API_INTEGRATION.md)).
 
 캐릭터 HTTP 연동 검사는 `npm run check:character-api`로 실행합니다. 서버 응답·보유 여부·선택 UUID·계정 전환·오류 복구를 모의 API로 확인합니다. 상세 범위는 [캐릭터 연동 가이드](CHARACTER_API.md)를 참고하세요.

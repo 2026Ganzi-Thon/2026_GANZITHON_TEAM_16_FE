@@ -10,6 +10,8 @@ try{
  browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:393,height:900},reducedMotion:'reduce'});
  let remote={id:'server-user',nickname:'서버닉네임',email:'server@example.com',birthDate:null,usePastDiaries:false,eveningReminderEnabled:false};
  let getCalls=0,patchCalls=0,failNext=false;
+ for (const path of ['characters','diaries','chat-sessions']) await page.route(`**/api/v1/${path}?*`,route=>route.fulfill({json:{items:[],nextCursor:null}}));
+ await page.route('**/api/v1/characters',route=>route.fulfill({json:{items:[]}}));
  await page.route('**/api/v1/auth/kakao',route=>route.fulfill({json:{accessToken:'profile-test-token'}}));
  await page.route('**/api/v1/me',async route=>{
   assert.equal(route.request().headers().authorization,'Bearer profile-test-token');

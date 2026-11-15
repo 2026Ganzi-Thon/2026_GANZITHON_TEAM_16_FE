@@ -7,11 +7,18 @@ const callbackRequests = new Map<string, Promise<LoginResponse>>();
 interface AuthCallbacks {
   onAuthenticated: () => void;
   onError: (message: string) => void;
+  onSessionExpired?: () => void;
 }
 
 export function useAuth(callbacks: AuthCallbacks) {
   const latest = useRef(callbacks);
   latest.current = callbacks;
+
+  useEffect(() => {
+    const expired = () => latest.current.onSessionExpired?.();
+    window.addEventListener('mowoo:auth-expired', expired);
+    return () => window.removeEventListener('mowoo:auth-expired', expired);
+  }, []);
 
   useEffect(() => {
     if (location.pathname !== '/login/oauth2/code/kakao') return;
