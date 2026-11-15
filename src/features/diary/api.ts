@@ -3,6 +3,7 @@
 import { request } from '../../lib/http';
 
 export interface DiaryEmotion { id: string; code: string; name: string; colorHex: string | null; iconUrl: string | null; isPrimary: boolean }
+export interface EmotionType { id: string; code: string; name: string; colorHex: string | null; iconUrl: string | null }
 export interface DiaryAttachment { id: string; mimeType: string; url: string; sortOrder: number }
 export interface Diary {
   id: string;
@@ -26,6 +27,9 @@ const query = (params: Record<string, string | number | null | undefined>) => {
 const id = (value: string) => encodeURIComponent(value);
 
 export const diaryApi = {
+  emotionTypes: (signal?: AbortSignal) => request<{ items: EmotionType[] }>('/api/v1/emotion-types', { signal }),
+  suggestEmotions: (diaryId: string, signal?: AbortSignal) => request<{ suggestedEmotionIds: string[]; primaryEmotionId: string }>(`/api/v1/diaries/${id(diaryId)}/emotion-suggestions`, { method: 'POST', signal }),
+  confirmEmotions: (diaryId: string, emotionIds: string[], primaryEmotionId: string, signal?: AbortSignal) => request<Diary>(`/api/v1/diaries/${id(diaryId)}/emotions`, { method: 'PUT', body: JSON.stringify({ emotionIds, primaryEmotionId }), signal }),
   create: (body: { entryDate: string; title: string; content: string }) =>
     request<Diary>('/api/v1/diaries', { method: 'POST', body: JSON.stringify(body) }),
   get: (diaryId: string) => request<Diary>(`/api/v1/diaries/${id(diaryId)}`),

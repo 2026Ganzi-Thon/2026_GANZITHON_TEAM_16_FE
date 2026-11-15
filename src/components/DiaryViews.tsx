@@ -3,9 +3,7 @@
 import { useEffect, useState } from 'react';
 import { diaryApi, diaryDateLabel, todaySeoul, type CalendarDay, type Diary } from '../features/diary/api';
 
-const blobColors = ['#7aa8f5', '#7ce3a1', '#f29b9b', '#f7dc7c'];
-const fallbackColor = (diary: Diary) => blobColors[parseInt(diary.id.replace(/\D/g, '').slice(-2) || '0', 10) % blobColors.length];
-const primaryColor = (diary: Diary) => diary.emotions.find(e => e.isPrimary)?.colorHex ?? fallbackColor(diary);
+const primaryColor = (diary: Diary) => diary.emotionConfirmedAt ? diary.emotions.find(e => e.isPrimary)?.colorHex ?? '#c7d4cf' : '#c7d4cf';
 const errorText = (error: unknown) => (error instanceof Error && error.message) || '기록을 불러오지 못했어요.';
 
 function Blob({ color }: { color: string }) {
