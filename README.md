@@ -18,7 +18,7 @@ npm run dev
 - 로컬 프로필 편집·설정 토글·일기 편집·선택 체크박스
 - 브라우저 localStorage로 미리보기 값 저장
 
-채팅·보관함은 `src/features/chat/mockApi.ts`(localStorage)로 동작합니다. 백엔드 `feat/chat-session` 계약과 같은 형식이며, 메시지 전송·5왕복 진행도·최근 메시지 수정·종료·보관함 커서를 지원합니다. 답변은 백엔드 Stub과 같은 임시 문장이고, 5왕복 후 일기 생성은 사용자 메시지를 모은 로컬 초안입니다. 백엔드 연결 시 `src/features/chat/api.ts`의 구현만 HTTP로 교체합니다. AI 응답·일기 서버 저장·실제 기록 삭제는 연결되지 않았습니다.
+로그인하면 대화·보관함·일기·캘린더·기록 삭제·계정 삭제가 실제 API로 동작하고, 로그인하지 않은 미리보기에서는 브라우저 localStorage 예시 데이터를 사용합니다. 연동 범위와 남은 작업은 [API 연동 현황](docs/API_INTEGRATION.md)을 참고하세요.
 
 ## 확인
 

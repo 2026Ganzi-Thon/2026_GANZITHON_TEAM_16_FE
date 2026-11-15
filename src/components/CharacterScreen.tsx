@@ -19,9 +19,10 @@ interface Props {
   showDetail: boolean;
   onBack: () => void;
   onOpen: (id: string) => void;
+  onChat: () => void;
 }
 
-export default function CharacterScreen({ state, showDetail, onBack, onOpen }: Props) {
+export default function CharacterScreen({ state, showDetail, onBack, onOpen, onChat }: Props) {
   const close = useRef<HTMLButtonElement>(null);
   const back = useRef(onBack);
   back.current = onBack;
@@ -69,8 +70,8 @@ export default function CharacterScreen({ state, showDetail, onBack, onOpen }: P
         <p className="character-description">{detail.description || '캐릭터 소개를 준비하고 있어요.'}</p>
         <p className="character-ownership">{detail.isOwned ? '보유중인 모우예요.' : '아직 보유하지 않은 모우예요.'}</p>
         <button type="button" className="character-primary" disabled={!detail.isOwned || state.loading || Boolean(state.error)}
-          aria-pressed={state.selectedId === detail.id} onClick={() => state.select(detail)}>
-          {!detail.isOwned ? '보유한 캐릭터만 선택할 수 있어요' : state.selectedId === detail.id ? '선택된 모우예요' : '이 모우 선택하기'}
+          onClick={() => state.selectedId === detail.id ? onChat() : state.select(detail)}>
+          {!detail.isOwned ? '보유한 캐릭터만 선택할 수 있어요' : state.selectedId === detail.id ? '대화하러 가기' : '이 모우 선택하기'}
         </button>
       </>}
     </section></div>}

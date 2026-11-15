@@ -1,0 +1,22 @@
+/* Rounded birth date calendar for the profile edit screen (393px design space). */
+.birth-picker{position:absolute;z-index:5;top:327px;left:51px;width:291px;padding:16px 14px 12px;background:#fff;border-radius:22px;box-shadow:0 10px 30px #1e838a26,0 1px 3px #22303714;border:1px solid #e3f4f0;font-family:Pretendard,sans-serif;color:#223037}
+.birth-picker-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:10px}
+.birth-picker-selects{display:flex;gap:6px}
+.birth-picker-selects select{appearance:none;border:0;border-radius:100px;background:#eefaf7;padding:6px 14px;font-size:15px;font-weight:600;color:#1e838a;cursor:pointer;text-align:center}
+.birth-picker-nav{width:32px;height:32px;border-radius:50%;background:transparent;font-size:22px;line-height:1;color:#1e838a;display:grid;place-items:center;padding:0 0 3px}
+.birth-picker-nav:hover:not(:disabled){background:#eefaf7}
+.birth-picker-nav:disabled{color:#cfd8d6;cursor:default}
+.birth-picker-grid{display:grid;grid-template-columns:repeat(7,1fr);row-gap:4px;justify-items:center}
+.birth-picker-weekday{font-size:12px;font-weight:600;color:#9aa6a8;padding:4px 0 6px}
+.birth-picker-weekday.is-sun,.birth-picker-day.is-sun{color:#ef7c7c}
+.birth-picker-weekday.is-sat,.birth-picker-day.is-sat{color:#6f9ff0}
+.birth-picker-day{width:36px;height:36px;border-radius:50%;background:transparent;font-size:15px;color:#223037;font-variant-numeric:tabular-nums}
+.birth-picker-day:hover:not(:disabled){background:#eefaf7}
+.birth-picker-day.is-selected{background:#3ce892;color:#fff;font-weight:700;box-shadow:0 3px 8px #3ce89259}
+.birth-picker-day:disabled{color:#d4dbda;cursor:default}
+.birth-picker-foot{display:flex;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid #eef3f2}
+.birth-picker-foot button{border-radius:100px;padding:6px 16px;font-size:14px;font-weight:600;background:transparent;color:#858585}
+.birth-picker-foot button.is-primary{background:#1e838a;color:#fff}
+.birth-picker button:focus-visible,.birth-picker select:focus-visible{outline:2px solid #1e838a;outline-offset:2px}
+.design-root input.profile-input[data-node-id="130:848"]{cursor:pointer}
+@media(prefers-reduced-motion:no-preference){.birth-picker{animation:birth-pop .14s ease-out}@keyframes birth-pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}}
