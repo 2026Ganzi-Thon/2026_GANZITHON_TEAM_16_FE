@@ -21,7 +21,7 @@ export function DiaryCard({ diary, onOpen }: { diary: Diary; onOpen: (id: string
 }
 
 /** Saved diaries, newest first, with "더 보기" paging. */
-export function LiveDiaryList({ top, onOpen }: { top: number; onOpen: (id: string) => void }) {
+export function LiveDiaryList({ top, from, to, onOpen }: { top: number; from?: string; to?: string; onOpen: (id: string) => void }) {
   const [items, setItems] = useState<Diary[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -29,7 +29,7 @@ export function LiveDiaryList({ top, onOpen }: { top: number; onOpen: (id: strin
   async function load(cursor: string | null) {
     setState('loading');
     try {
-      const page = await diaryApi.list({ cursor });
+      const page = await diaryApi.list({ from, to, cursor });
       setItems(current => { const seen = new Set(current.map(d => d.id)); return [...current, ...page.items.filter(d => !seen.has(d.id))]; });
       setNext(page.nextCursor); setState('ready');
     } catch (reason) { setError(errorText(reason)); setState('error'); }
@@ -37,7 +37,7 @@ export function LiveDiaryList({ top, onOpen }: { top: number; onOpen: (id: strin
   useEffect(() => { void load(null); }, []); // first page once
   return <div className="diary-live-list" style={{ top }}>
     {items.map(diary => <DiaryCard key={diary.id} diary={diary} onOpen={onOpen} />)}
-    {state === 'ready' && items.length === 0 && <p className="diary-empty">아직 저장한 일기가 없어요.<br />오늘의 마음을 기록해 보세요.</p>}
+    {state === 'ready' && items.length === 0 && <p className="diary-empty">{from ? '이 기간에 저장한 일기가 없어요.' : <>아직 저장한 일기가 없어요.<br />오늘의 마음을 기록해 보세요.</>}</p>}
     {state === 'error' && <p className="diary-empty" role="alert">{error} <button type="button" className="diary-link" onClick={() => void load(next)}>다시 시도</button></p>}
     {next && state !== 'loading' && <button type="button" className="diary-more" onClick={() => void load(next)}>더 보기</button>}
     {state === 'loading' && <p className="diary-empty" role="status">불러오는 중…</p>}

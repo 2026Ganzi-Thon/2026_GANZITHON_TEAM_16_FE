@@ -48,6 +48,27 @@ const diaryDateLabelFor = (value: string) => {
 };
 const sessionParam = () => new URLSearchParams(location.search).get('session');
 const diaryIdParam = () => new URLSearchParams(location.search).get('id');
+type DiaryFilter = { mode: 'month' | 'thisMonth' | 'thisWeek'; month: string };
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** Date range (Seoul calendar dates) for the 오늘의 기록 filter chips. */
+function diaryRange(filter: DiaryFilter): { from: string; to: string } {
+  const today = todaySeoul();
+  if (filter.mode === 'thisMonth') return { from: `${today.slice(0, 7)}-01`, to: today };
+  if (filter.mode === 'thisWeek') {
+    const [y, m, d] = today.split('-').map(Number);
+    const start = new Date(y, m - 1, d - new Date(y, m - 1, d).getDay());
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+    const iso = (date: Date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+    return { from: iso(start), to: iso(end) };
+  }
+  const [y, m] = filter.month.split('-').map(Number);
+  return { from: `${filter.month}-01`, to: `${filter.month}-${pad2(new Date(y, m, 0).getDate())}` };
+}
+/** The current month and the 11 before it, newest first, as YYYY-MM. */
+const recentMonths = () => {
+  const [y, m] = todaySeoul().split('-').map(Number);
+  return Array.from({ length: 12 }, (_, i) => { const d = new Date(y, m - 1 - i, 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; });
+};
 // Logged-in screens replace these Figma sample nodes with server data.
 const liveHiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
   Diary: new Set(['155:225', '28:3210']),
@@ -93,6 +114,12 @@ export default function App() {
   const [editor, setEditor] = useState({ title: '', content: '' });
   const [busy, setBusy] = useState(false);
   const [selectedDiaries, setSelectedDiaries] = useState<Set<string>>(new Set());
+  const [diaryFilter, setDiaryFilter] = useState<DiaryFilter>(() => ({ mode: 'month', month: todaySeoul().slice(0, 7) }));
+  const [monthMenu, setMonthMenu] = useState(false);
+  const chooseFilter = (next: DiaryFilter) => {
+    setDiaryFilter(next); setMonthMenu(false);
+    if (!live) setNotice('미리보기에서는 예시 기록만 보여요. 로그인하면 기간별로 볼 수 있어요.');
+  };
   useEffect(() => { if (profileError) setNotice(profileError); }, [profileError]);
   const [selected, setSelected] = useState<Set<string>>(new Set(['113:984']));
   const [savingSetting, setSavingSetting] = useState<string | null>(null);
@@ -113,7 +140,7 @@ export default function App() {
   const go = (next: ScreenName, replace = false) => {
     const path = Object.entries(paths).find(([, value]) => value === next)?.[0] ?? `/design/${next}`;
     if (location.pathname === path && !replace) return;
-    navigate(path, replace); setScreen(next); setNotice(''); setViewSession(null); setShowProgress(false); setDiaryId(null);
+    navigate(path, replace); setScreen(next); setNotice(''); setViewSession(null); setShowProgress(false); setDiaryId(null); setMonthMenu(false);
     if (next === 'EditProfile') setDraft(profile);
   };
   const openSession = (id: string) => {
@@ -278,6 +305,9 @@ export default function App() {
   });
   if (screen === 'CharacterDetail') actions['120:394'] = ['닫기', back];
   if (screen === 'Diary') {
+    actions['28:3191'] = ['월 선택', () => { if (diaryFilter.mode !== 'month') chooseFilter({ ...diaryFilter, mode: 'month' }); else setMonthMenu(open => !open); }];
+    actions['28:3192'] = ['이번 달 기록', () => chooseFilter({ ...diaryFilter, mode: 'thisMonth' })];
+    actions['155:119'] = ['이번 주 기록', () => chooseFilter({ ...diaryFilter, mode: 'thisWeek' })];
     link(['28:3046','28:3210'], '오늘을 기록하러 가기', 'DiaryChoice');
     link(['28:3054','155:214'], '지난 일기 보기', 'DiaryDetail'); link(['28:3187','28:3211','155:143'], '마음 캘린더', 'Calendar');
   }
@@ -344,6 +374,28 @@ export default function App() {
         }
         if (id === '33:4038' && myPageStats.error) children = [...Children.toArray(children), <button key="retry-stats" type="button" className="mypage-stats-retry" onClick={myPageStats.retry}>{myPageStats.error} · 다시 시도</button>];
       }
+      if (screen === 'Diary') {
+        // Filter chips: the chosen one is teal, the others grey (as in the design).
+        const chip = { '28:3191': 'month', '28:3192': 'thisMonth', '155:119': 'thisWeek' }[id];
+        if (chip) {
+          extra.style = { ...props.style, background: diaryFilter.mode === chip ? '#1e838a' : '#d9d9d9' };
+          extra['aria-pressed'] = diaryFilter.mode === chip;
+        }
+        if (id === '28:3190') children = [`${Number(diaryFilter.month.slice(5))}월`];
+        if (id === screens.Diary.nodeId && monthMenu) children = [...Children.toArray(children),
+          <div key="month-menu" className="diary-month-menu" role="listbox" aria-label="월 선택">
+            {recentMonths().map(month => <button key={month} type="button" role="option" aria-selected={month === diaryFilter.month}
+              className={month === diaryFilter.month ? 'is-selected' : ''} onClick={() => chooseFilter({ mode: 'month', month })}>
+              {month.slice(0, 4)}년 {Number(month.slice(5))}월
+            </button>)}
+          </div>];
+      }
+      if (screen === 'MyPage' && (id === '33:4004' || id === '33:4014')) {
+        // My 캐릭터 cards: real descriptions instead of the design's placeholder text.
+        const character = findCharacter(id === '33:4004' ? 'kind' : 'cool');
+        children = [character.description]; extra.title = character.description;
+        extra.className = `${props.className ?? ''} mypage-character-description`;
+      }
       const texts: Record<string, string> = { '130:769': profile.nickname, '130:777': profile.email ?? '', '130:776': profile.birthDate ? new Date(`${profile.birthDate}T00:00:00`).toLocaleDateString('ko-KR', { year:'numeric',month:'long',day:'numeric' }) : '', '33:3972': profile.nickname };
       if (id in texts) { children = [texts[id]]; extra.title = texts[id]; }
       const fields: Record<string, [keyof Profile, string]> = { '130:846':['nickname','닉네임'], '130:847':['email','이메일'], '130:848':['birthDate','생년월일'] };
@@ -399,7 +451,7 @@ export default function App() {
       if (live && (screen === 'Diary' || screen === 'Calendar') && id === screens[screen].nodeId) {
         extra.className = `${props.className ?? ''} record-flow-page record-flow-${screen.toLowerCase()}`;
         children = [...(Children.toArray(children)), screen === 'Diary'
-          ? <LiveDiaryList key="live-diaries" top={599} onOpen={diaryId => openDiary(diaryId)} />
+          ? <LiveDiaryList key={`live-diaries-${diaryRange(diaryFilter).from}-${diaryRange(diaryFilter).to}`} top={599} {...diaryRange(diaryFilter)} onOpen={diaryId => openDiary(diaryId)} />
           : <LiveCalendar key="live-calendar" onOpen={diaryId => openDiary(diaryId)} onNotice={setNotice} />];
       }
       if (screen === 'Home' && characterState.authenticated) {

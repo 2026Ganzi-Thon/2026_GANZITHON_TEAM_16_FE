@@ -24,7 +24,7 @@ function sampleStore(): Store {
     lines.forEach((content, i) => {
       const base = { createdAt: at, editedAt: null, diaryReferences: [] };
       messages.push({ ...base, id: `${id}-u${i}`, sequenceNo: i * 2 + 1, senderRole: 'USER', characterId: null, content });
-      messages.push({ ...base, id: `${id}-a${i}`, sequenceNo: i * 2 + 2, senderRole: 'ASSISTANT', characterId: 'local-mowoo-kind', content: stubReply('local-mowoo-kind') });
+      messages.push({ ...base, id: `${id}-a${i}`, sequenceNo: i * 2 + 2, senderRole: 'ASSISTANT', characterId: 'local-mowoo-kind', content: stubReply('local-mowoo-kind', content, i) });
     });
     store.messages[id] = messages;
     store.sessions.push(withProgress({ id, characterId: 'local-mowoo-kind', title: null, summary: null, startedAt: at, endedAt: at, completedTurns: 0, canGenerateDiary: false }, messages));
@@ -71,8 +71,29 @@ function requireContent(content: string) {
   if (!trimmed) throw new ChatApiError('MESSAGE_EMPTY', 400, '메시지를 입력해 주세요.');
   return trimmed;
 }
-function stubReply(characterId: string) {
-  return `${characterName(characterId)}가 듣고 있어요. 조금 더 이야기해 줄래요?`;
+// Preview-only replies (logged in, the backend AI answers). They react to a few common
+// topics and change with the turn so a 5-turn preview chat doesn't repeat itself.
+const topicReplies: [RegExp, string[]][] = [
+  [/싸웠|싸워|싸우|다퉜|다투|서운|서먹|갈등|틀어/, ['마음이 많이 상했겠어요. 어떤 말이 제일 마음에 걸렸어요?', '서로 생각이 달라서 더 속상했을 것 같아요. 그 친구에게 바라는 게 있다면 뭐예요?']],
+  [/면접|시험|발표|과제|마감/, ['중요한 일을 앞두고 있으면 긴장되는 게 당연해요. 가장 걱정되는 부분은 뭐예요?', '지금까지 준비해 온 것도 분명 있을 거예요. 스스로 잘했다고 느끼는 부분이 있나요?']],
+  [/불안|걱정|무서|두려/, ['불안한 마음이 계속 맴돌았군요. 그 걱정이 언제부터 커졌는지 떠올려 볼까요?', '걱정을 꺼내 놓는 것만으로도 조금은 가벼워질 수 있어요. 지금 몸은 좀 어때요?']],
+  [/피곤|지쳤|힘들|졸려|바빴/, ['오늘 정말 애썼네요. 가장 기운이 빠졌던 순간은 언제였어요?', '쉬지 못하고 달려온 하루였나 봐요. 잠깐이라도 숨 돌릴 수 있었던 때가 있었나요?']],
+  [/슬퍼|우울|눈물|외로/, ['그런 마음이 드는 날이 있죠. 혼자 견디지 않아도 괜찮아요. 무슨 일이 있었는지 들려줄래요?', '많이 허전했겠어요. 그 마음이 들 때 곁에 있어 줬으면 하는 사람이 있나요?']],
+  [/화나|짜증|억울|열받/, ['화가 날 만했어요. 어떤 부분이 가장 억울했어요?', '그 감정을 참느라 힘들었겠어요. 지금은 조금 가라앉았나요?']],
+  [/좋았|기뻤|행복|신나|재밌|맛있/, ['듣기만 해도 기분이 좋아져요! 그 순간 어떤 기분이었는지 더 얘기해 줄래요?', '오늘의 좋은 일을 오래 기억하고 싶네요. 누구와 함께였어요?']],
+];
+const followUps = [
+  '그랬군요. 그때 어떤 기분이 들었어요?',
+  '이야기해 줘서 고마워요. 그 일 다음엔 어떻게 됐어요?',
+  '그 마음 충분히 이해돼요. 지금 가장 크게 남아 있는 감정은 뭐예요?',
+  '천천히 말해도 괜찮아요. 그 일이 왜 마음에 남았는지 궁금해요.',
+  '오늘 하루를 한 단어로 표현한다면 뭐라고 하고 싶어요?',
+];
+function stubReply(characterId: string, content = '', turn = 0) {
+  const topic = topicReplies.find(([pattern]) => pattern.test(content));
+  const options = topic ? topic[1] : followUps;
+  const reply = options[turn % options.length];
+  return turn === 0 && !topic ? `${characterName(characterId)}가 듣고 있어요. ${reply}` : reply;
 }
 function page<T>(items: T[], limit = 20, cursor?: string | null) {
   const size = Math.min(100, Math.max(1, limit));
@@ -153,7 +174,7 @@ export const mockChatApi: ChatApi = {
     };
     const assistantMessage: ChatMessage = {
       id: uuid(), sequenceNo: nextSeq + 1, senderRole: 'ASSISTANT', characterId: session.characterId,
-      content: stubReply(session.characterId), createdAt: now(), editedAt: null, diaryReferences: [],
+      content: stubReply(session.characterId, text, Math.floor(messages.length / 2)), createdAt: now(), editedAt: null, diaryReferences: [],
     };
     messages.push(userMessage, assistantMessage);
     Object.assign(session, withProgress(session, messages));
@@ -174,7 +195,7 @@ export const mockChatApi: ChatApi = {
     if (!isLatestPair) throw new ChatApiError('MESSAGE_NOT_EDITABLE', 409, '가장 최근 메시지만 수정할 수 있어요.');
     const edited = now();
     const userMessage = { ...messages[index], content: text, editedAt: edited };
-    const assistantMessage = { ...messages[index + 1], content: stubReply(session.characterId), editedAt: edited };
+    const assistantMessage = { ...messages[index + 1], content: stubReply(session.characterId, text, Math.floor(index / 2)), editedAt: edited };
     messages.splice(index, 2, userMessage, assistantMessage);
     save(store);
     return { userMessage, assistantMessage };

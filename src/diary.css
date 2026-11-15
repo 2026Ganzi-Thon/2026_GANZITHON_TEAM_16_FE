@@ -44,3 +44,10 @@
 .record-flow-page>.diary-live-list{position:relative;left:auto;top:auto!important;width:auto;margin:0 16px;padding:0;min-height:160px;border:0;border-radius:0;background:transparent;box-shadow:none}
 .diary-create-floating{position:fixed;z-index:30;left:calc(50% + min(50vw,196.5px) - 88px);bottom:max(24px,env(safe-area-inset-bottom));width:64px;height:64px;padding:0;background:transparent;filter:drop-shadow(0 3px 8px #22303718)}
 .diary-create-floating img{width:100%;height:100%;object-fit:contain}.diary-create-floating:focus-visible{outline:3px solid #1e838a;outline-offset:4px;border-radius:50%}
+/* My 모우 character cards: two lines, then an ellipsis. */
+.design-root .mypage-character-description{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:18px;white-space:normal}
+/* 오늘의 기록 month picker under the month chip. */
+.diary-month-menu{position:absolute;top:586px;left:22px;z-index:4;width:170px;max-height:260px;overflow-y:auto;padding:6px;background:#fff;border-radius:16px;box-shadow:0 10px 30px #1e838a26,0 1px 3px #22303714;display:flex;flex-direction:column;gap:2px}
+.diary-month-menu button{padding:9px 14px;border-radius:10px;background:transparent;text-align:left;font-size:15px;color:#223037}
+.diary-month-menu button:hover{background:#eefaf7}
+.diary-month-menu button.is-selected{background:#1e838a;color:#fff;font-weight:600}
