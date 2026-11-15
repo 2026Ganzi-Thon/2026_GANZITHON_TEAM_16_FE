@@ -21,7 +21,7 @@ export function DiaryCard({ diary, onOpen }: { diary: Diary; onOpen: (id: string
 }
 
 /** Saved diaries, newest first, with "더 보기" paging. */
-export function LiveDiaryList({ top, onOpen }: { top: number; onOpen: (id: string) => void }) {
+export function LiveDiaryList({ top, from, to, onOpen }: { top: number; from?: string; to?: string; onOpen: (id: string) => void }) {
   const [items, setItems] = useState<Diary[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -29,7 +29,7 @@ export function LiveDiaryList({ top, onOpen }: { top: number; onOpen: (id: strin
   async function load(cursor: string | null) {
     setState('loading');
     try {
-      const page = await diaryApi.list({ cursor });
+      const page = await diaryApi.list({ from, to, cursor });
       setItems(current => { const seen = new Set(current.map(d => d.id)); return [...current, ...page.items.filter(d => !seen.has(d.id))]; });
       setNext(page.nextCursor); setState('ready');
     } catch (reason) { setError(errorText(reason)); setState('error'); }
@@ -37,7 +37,7 @@ export function LiveDiaryList({ top, onOpen }: { top: number; onOpen: (id: strin
   useEffect(() => { void load(null); }, []); // first page once
   return <div className="diary-live-list" style={{ top }}>
     {items.map(diary => <DiaryCard key={diary.id} diary={diary} onOpen={onOpen} />)}
-    {state === 'ready' && items.length === 0 && <p className="diary-empty">아직 저장한 일기가 없어요.<br />오늘의 마음을 기록해 보세요.</p>}
+    {state === 'ready' && items.length === 0 && <p className="diary-empty">{from ? '이 기간에 저장한 일기가 없어요.' : <>아직 저장한 일기가 없어요.<br />오늘의 마음을 기록해 보세요.</>}</p>}
     {state === 'error' && <p className="diary-empty" role="alert">{error} <button type="button" className="diary-link" onClick={() => void load(next)}>다시 시도</button></p>}
     {next && state !== 'loading' && <button type="button" className="diary-more" onClick={() => void load(next)}>더 보기</button>}
     {state === 'loading' && <p className="diary-empty" role="status">불러오는 중…</p>}
@@ -48,30 +48,65 @@ const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'Jul
 const weekdayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const pad = (n: number) => String(n).padStart(2, '0');
 
+type MonthLoader = (from: string, to: string, month: string) => Promise<{ diaries: Diary[]; days: CalendarDay[] }>;
+// Server data: the diary list gives every saved day; the calendar API adds the confirmed mood color.
+const loadFromServer: MonthLoader = async (from, to, month) => {
+  const [page, calendar] = await Promise.all([
+    diaryApi.list({ from, to, limit: 100 }),
+    diaryApi.calendar(month).catch(() => ({ month, days: [] as CalendarDay[] })),
+  ]);
+  return { diaries: page.items, days: calendar.days };
+};
+
+/** Logged-out preview: sample diaries on the 1st, 5th and 6th of every month (as drawn in the design). */
+export function previewDiaries(from: string, to: string): Diary[] {
+  const month = from.slice(0, 7);
+  const samples: [number, string, string, string][] = [
+    [1, '#f7dc7c', '새 달의 시작', '새로운 달이 시작됐다. 이번 달에는 조금 더 나를 챙기고 싶다.'],
+    [5, '#7aa8f5', '면접을 앞둔 날', '낮에는 괜찮은 척했는데, 저녁이 되니 마음이 자꾸 가라앉는다.'],
+    [6, '#7ce3a1', '조금 가벼워진 날', '모우와 이야기하고 나니 걱정이 한결 정리됐다.'],
+  ];
+  const today = todaySeoul();
+  const diaries: Diary[] = samples
+    .map(([day, color, title, content]) => ({ date: `${month}-${pad(day)}`, color, title, content }))
+    .filter(({ date }) => date >= from && date <= to && date <= today)
+    .reverse()
+    .map(({ date, color, title, content }) => ({
+      id: `preview-${date}`, sourceSessionId: null, entryDate: date, title, content, savedAt: date, emotionConfirmedAt: date,
+      emotions: [{ id: color, code: '', name: '', colorHex: color, iconUrl: null, isPrimary: true }], attachments: [],
+    }));
+  return diaries;
+}
+
 /** Mind calendar month grid + that month's diaries. Days with a diary show a mood blob. */
-export function LiveCalendar({ onOpen, onNotice }: { onOpen: (id: string) => void; onNotice: (text: string) => void }) {
+export function LiveCalendar({ onOpen, onNotice, load = loadFromServer, preview = false }: { onOpen: (id: string, date: string) => void; onNotice: (text: string) => void; load?: MonthLoader; preview?: boolean }) {
   const [y0, m0] = todaySeoul().split('-').map(Number);
-  const [view, setView] = useState({ year: y0, month: m0 });
-  const [diaries, setDiaries] = useState<Diary[]>([]);
+  // Remember the viewed month while the tab is open, so "back" from a diary returns to it.
+  const [view, setView] = useState(() => {
+    try { const saved = JSON.parse(sessionStorage.getItem('mowoo.calendarMonth') ?? 'null'); if (saved?.year && saved?.month) return saved as { year: number; month: number }; } catch { /* ignore */ }
+    return { year: y0, month: m0 };
+  });
+  useEffect(() => { try { sessionStorage.setItem('mowoo.calendarMonth', JSON.stringify(view)); } catch { /* ignore */ } }, [view]);
+  const [loaded, setDiaries] = useState<Diary[]>([]);
   const [days, setDays] = useState<CalendarDay[]>([]);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [loadState, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState('');
   const monthKey = `${view.year}-${pad(view.month)}`;
   const last = new Date(view.year, view.month, 0).getDate();
+  // Preview data is drawn in the first frame so scroll restoration on "back" has its full height.
+  const diaries = preview ? previewDiaries(`${monthKey}-01`, `${monthKey}-${pad(last)}`) : loaded;
+  const state = preview ? 'ready' : loadState;
 
   useEffect(() => {
+    if (preview) return;
     let active = true;
     setState('loading');
-    // Diary list gives every saved day; the calendar API adds the confirmed mood color.
-    Promise.all([
-      diaryApi.list({ from: `${monthKey}-01`, to: `${monthKey}-${pad(last)}`, limit: 100 }),
-      diaryApi.calendar(monthKey).catch(() => ({ month: monthKey, days: [] as CalendarDay[] })),
-    ]).then(([page, calendar]) => {
+    load(`${monthKey}-01`, `${monthKey}-${pad(last)}`, monthKey).then(result => {
       if (!active) return;
-      setDiaries(page.items); setDays(calendar.days); setState('ready');
+      setDiaries(result.diaries); setDays(result.days); setState('ready');
     }).catch(reason => { if (active) { setError(errorText(reason)); setState('error'); } });
     return () => { active = false; };
-  }, [monthKey, last]);
+  }, [monthKey, last, load, preview]);
 
   const byDate = new Map<string, Diary[]>();
   diaries.forEach(d => byDate.set(d.entryDate, [...(byDate.get(d.entryDate) ?? []), d]));
@@ -99,18 +134,18 @@ export function LiveCalendar({ onOpen, onNotice }: { onOpen: (id: string) => voi
           const color = moodByDate.get(date) ?? (entries[0] ? primaryColor(entries[0]) : null);
           return <button key={date} type="button" className={`live-calendar-day${entries.length ? ' has-diary' : ''}`}
             aria-label={`${view.month}월 ${day}일${entries.length ? ' 기록 보기' : ''}`}
-            onClick={() => entries.length ? onOpen(entries[0].id) : onNotice(`${view.month}월 ${day}일에는 남긴 기록이 없어요.`)}>
+            onClick={() => entries.length ? onOpen(entries[0].id, date) : onNotice(`${view.month}월 ${day}일에는 남긴 기록이 없어요.`)}>
             {color && <Blob color={color} />}<span>{day}</span>
           </button>;
         })}
       </div>
     </section>
-    <div className="diary-live-list live-calendar-list">
+    <div className={`diary-live-list live-calendar-list${preview ? ' is-preview' : ''}`}>
       <h2 className="live-calendar-title">{view.month}월 기록</h2>
       {state === 'loading' && <p className="diary-empty" role="status">불러오는 중…</p>}
       {state === 'error' && <p className="diary-empty" role="alert">{error}</p>}
       {state === 'ready' && diaries.length === 0 && <p className="diary-empty">이 달에는 저장한 일기가 없어요.</p>}
-      {[...diaries].reverse().map(diary => <DiaryCard key={diary.id} diary={diary} onOpen={onOpen} />)}
+      {[...diaries].reverse().map(diary => <DiaryCard key={diary.id} diary={diary} onOpen={id => onOpen(id, diary.entryDate)} />)}
     </div>
   </>;
 }

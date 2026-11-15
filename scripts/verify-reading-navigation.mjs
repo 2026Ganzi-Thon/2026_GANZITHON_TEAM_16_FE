@@ -36,8 +36,9 @@ try {
     const calendar=page.locator('[data-scroll-key="Calendar"]');
     await calendar.evaluate(node=>node.scrollTop=node.scrollHeight);
     const previousScroll=await calendar.evaluate(node=>node.scrollTop);
-    await page.getByRole('button',{name:'일기 보기',exact:true}).click();
-    await page.waitForURL('**/diary/detail');
+    // The calendar list shows the current month's sample diaries; open the first one.
+    await page.locator('.live-calendar-list .diary-card').first().click();
+    await page.waitForURL(/\/diary\/detail\?date=\d{4}-\d{2}-\d{2}$/);
     await checkScroll('[data-node-id="113:2809"]');
     await page.screenshot({path:`.local/reading-navigation/diary-bottom-${width}.png`,fullPage:true});
     await page.reload();
