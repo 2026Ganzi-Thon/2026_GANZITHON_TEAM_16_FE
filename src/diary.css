@@ -51,3 +51,5 @@
 .diary-month-menu button{padding:9px 14px;border-radius:10px;background:transparent;text-align:left;font-size:15px;color:#223037}
 .diary-month-menu button:hover{background:#eefaf7}
 .diary-month-menu button.is-selected{background:#1e838a;color:#fff;font-weight:600}
+/* Preview calendar list: white sheet under the cards (the design sheet is a fixed height). */
+.live-calendar-list.is-preview{left:0;width:393px;padding:0 16px 110px;background:#fff}

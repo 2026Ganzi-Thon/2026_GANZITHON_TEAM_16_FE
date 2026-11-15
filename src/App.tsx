@@ -21,22 +21,12 @@ import { membership, useMyPageStats } from './features/profile/useMyPageStats';
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
   Chat: new Set(['17:244', '30:3565', '30:3571', '17:292', '17:298']),
   Archive: new Set(['155:1391', '155:1402', '155:1403']),
+  // The design's fixed June 2026 grid and its sample list; LiveCalendar draws the real month.
+  Calendar: new Set(['26:2814', '155:1164']),
   // Keep two sample records until the record list/delete API exists.
   DeleteSelected: new Set(['113:1008', '113:1022', '113:966']), // 113:966: drawn scrollbar
 };
 const progressModalNodes = ['130:563', '130:653'];
-// Mind calendar (design month: June 2026): day cell node -> day of month.
-const calendarYear = 2026, calendarMonth = 6;
-const calendarCells: Record<string, number> = {
-  '26:2947':1,'26:2949':2,'26:2951':3,'26:2953':4,
-  '26:2971':5,'26:2973':6,'26:2975':7,'26:2977':8,'26:2979':9,'26:2981':10,'26:2983':11,
-  '26:2956':12,'26:2958':13,'26:2960':14,'26:2962':15,'26:2964':16,'26:2966':17,'26:2968':18,
-  '26:2926':19,'26:2928':20,'26:2930':21,'26:2932':22,'26:2934':23,'26:2936':24,'26:2938':25,
-  '26:2911':26,'26:2913':27,'26:2915':28,'26:2917':29,'26:2919':30,'26:2921':31,
-};
-// Days drawn with a mood badge in the design; replace with the calendar API's record dates.
-const calendarRecordDays = new Set([1, 5, 6]);
-const isoDate = (day: number) => `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 const diaryDateParam = () => {
   const value = new URLSearchParams(location.search).get('date');
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
@@ -72,7 +62,7 @@ const recentMonths = () => {
 // Logged-in screens replace these Figma sample nodes with server data.
 const liveHiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
   Diary: new Set(['155:225', '28:3210']),
-  Calendar: new Set(['26:2814', '155:1164', '199:138']),
+  Calendar: new Set(['199:138']),
   DeleteSelected: new Set(['113:993', '113:994']),
 };
 const characterParam = () => new URLSearchParams(location.search).get('character');
@@ -140,6 +130,8 @@ export default function App() {
   const go = (next: ScreenName, replace = false) => {
     const path = Object.entries(paths).find(([, value]) => value === next)?.[0] ?? `/design/${next}`;
     if (location.pathname === path && !replace) return;
+    // Opening the calendar fresh starts at this month; only "back" returns to a remembered month.
+    if (next === 'Calendar') { try { sessionStorage.removeItem('mowoo.calendarMonth'); } catch { /* ignore */ } }
     navigate(path, replace); setScreen(next); setNotice(''); setViewSession(null); setShowProgress(false); setDiaryId(null); setMonthMenu(false);
     if (next === 'EditProfile') setDraft(profile);
   };
@@ -314,14 +306,6 @@ export default function App() {
   if (screen === 'DiaryChoice') { link(['33:3928'], '모우와 대화하고 자동 기록하기', 'Chat'); link(['33:3927'], '직접 작성하기', 'DiaryEditor'); actions['227:138'] = ['닫기', back]; }
   if (screen === 'DiaryEditor') actions['155:606'] = ['일기 저장', live ? () => { void saveLiveDiary(); } : () => { if (diaryText) localStorage.setItem('mowoo.diary', diaryText); go('DiarySaved'); }];
   if (screen === 'DiaryDetail') actions['113:2810'] = ['수정하기', live && liveDiary ? () => openDiary(liveDiary.id, true) : () => go('DiaryEditor')];
-  if (screen === 'Calendar') {
-    link(['155:1138'], '일기 보기', 'DiaryDetail');
-    if (!live) Object.entries(calendarCells).forEach(([id, day]) => {
-      actions[id] = calendarRecordDays.has(day)
-        ? [`${calendarMonth}월 ${day}일 기록 보기`, () => openDiaryDate(isoDate(day))]
-        : [`${calendarMonth}월 ${day}일`, () => setNotice(`${calendarMonth}월 ${day}일에는 남긴 기록이 없어요.`)];
-    });
-  }
   if (screen === 'Chat') {
     actions['30:3559'] = ['오늘 대화로 일기 자동 생성', () => { void generateDiary(); }];
     actions['97:52'] = ['메시지 보내기', () => { void sendMessage(); }];
@@ -448,6 +432,9 @@ export default function App() {
       }
       if (live && screen === 'Diary' && id === '28:3049') extra.style = { ...props.style, height: Math.max(342, flowHeight - 510) };
       if (live && screen === 'Calendar' && id === '26:2993') extra.style = { ...props.style, height: Math.max(367, flowHeight - 507) };
+      if (!live && screen === 'Calendar' && id === screens.Calendar.nodeId) {
+        children = [...Children.toArray(children), <LiveCalendar key="preview-calendar" preview onOpen={(_, date) => openDiaryDate(date)} onNotice={setNotice} />];
+      }
       if (live && (screen === 'Diary' || screen === 'Calendar') && id === screens[screen].nodeId) {
         extra.className = `${props.className ?? ''} record-flow-page record-flow-${screen.toLowerCase()}`;
         children = [...(Children.toArray(children)), screen === 'Diary'
