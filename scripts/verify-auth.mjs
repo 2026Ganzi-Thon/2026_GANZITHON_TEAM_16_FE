@@ -9,6 +9,8 @@ try {
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Server startup timeout')),15000);server.once('exit',code=>{clearTimeout(timer);reject(new Error('Server exited '+code));});server.stdout.on('data',data=>{if(data.toString().includes('3100')){clearTimeout(timer);resolve();}});});
  browser=await chromium.launch({channel:'chrome',headless:true});const page=await browser.newPage({viewport:{width:393,height:900}});
  let loginCalls=0,profileCalls=0,reissueCalls=0,logoutCalls=0,logoutFailure=false;
+ for (const path of ['characters','diaries','chat-sessions']) await page.route(`**/api/v1/${path}?*`,route=>route.fulfill({json:{items:[],nextCursor:null}}));
+ await page.route('**/api/v1/characters',route=>route.fulfill({json:{items:[]}}));
  await page.route('**/api/v1/me',route=>{profileCalls++;return route.fulfill({json:{id:'user-1',nickname:'사용자',email:'user@example.com',birthDate:null,usePastDiaries:false,eveningReminderEnabled:false}});});
  await page.route('**/api/v1/auth/kakao',route=>{loginCalls++;assert.equal(route.request().method(),'POST');const {code}=route.request().postDataJSON();return code==='bad-code'?route.fulfill({status:400,json:{error:{message:'잘못된 인가 코드'}}}):route.fulfill({json:{accessToken:'test-access-token',id:'user-1',username:'사용자'},headers:{'Set-Cookie':'refresh_token=test-refresh; Path=/api/v1/auth; HttpOnly; SameSite=Lax'}});});
  await page.route('**/api/v1/auth/reissue',route=>{reissueCalls++;assert(route.request().headers().cookie?.includes('refresh_token=test-refresh'));return route.fulfill({json:{accessToken:'renewed-token'}});});

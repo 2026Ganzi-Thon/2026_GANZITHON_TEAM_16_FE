@@ -106,6 +106,7 @@ export default function App() {
   const homeCharacter = characterState.items.find(item => item.id === characterState.selectedId && item.isOwned)
     ?? characterState.items.find(item => item.isOwned);
   const { startLogin, logout } = useAuth({
+    onSessionExpired: () => { navigate('/', true); setScreen('Login'); setNotice('로그인이 만료됐어요. 다시 로그인해 주세요.'); },
     onAuthenticated: () => { navigate('/home', true); setScreen('Home'); },
     onError: setNotice,
   });
