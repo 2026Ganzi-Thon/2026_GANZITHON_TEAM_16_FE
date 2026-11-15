@@ -318,6 +318,8 @@ export default function App() {
     const extra: NodeProps = {};
     let action = actions[id];
     if (name === 'tabler:chevron-left') action = ['뒤로 가기', back];
+    if (!previewOnly && screen !== 'Login' && name === 'logo') children = [...Children.toArray(children),
+      <button key="home-logo" type="button" className="chat-home-logo" aria-label="홈으로 이동" onClick={() => go('Home')} />];
     if (['120:460','113:2809','33:3939'].includes(id)) Object.assign(extra, { 'data-scroll-key':id, tabIndex:0, role:'region', 'aria-label':id === '120:460' ? '캐릭터 설명' : '일기 본문' });
     if (['Diary','Calendar','Archive'].includes(screen) && id === screens[screen].nodeId) extra['data-scroll-key'] = screen;
     if (name === 'tabler:photo' && screen === 'DiaryEditor') action = ['사진 첨부', () => fileInput.current?.click()];
