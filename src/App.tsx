@@ -12,7 +12,7 @@ import BirthDateField from './components/BirthDateField';
 import { characterCardNodes, characterCatalog, findCharacter } from './features/characters/catalog';
 import { useCharacters } from './features/characters/useCharacters';
 import CharacterScreen from './components/CharacterScreen';
-import { LiveCalendar, LiveDeleteList, LiveDiaryList } from './components/DiaryViews';
+import { LiveCalendar, LiveDeleteList, LiveDiaryList, WeekList, WeekRow, useWeekDiaries } from './components/DiaryViews';
 import { diaryApi, todaySeoul, type Diary } from './features/diary/api';
 import { tokens } from './lib/http';
 import { membership, useMyPageStats } from './features/profile/useMyPageStats';
@@ -24,6 +24,9 @@ const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
   Archive: new Set(['155:1391', '155:1402', '155:1403']),
   // The design's fixed June 2026 grid and its sample list; LiveCalendar draws the real month.
   Calendar: new Set(['26:2814', '155:1164']),
+  // Fixed sample week (5~11) on 오늘의 기록 and the home; WeekRow/WeekList draw this week.
+  Diary: new Set(['155:143']),
+  Home: new Set(['94:191', '106:84']),
   // Keep two sample records until the record list/delete API exists.
   DeleteSelected: new Set(['113:1008', '113:1022', '113:966']), // 113:966: drawn scrollbar
 };
@@ -101,6 +104,7 @@ export default function App() {
     return () => removeEventListener('mowoo:auth-change', changed);
   }, []);
   const [diaryId, setDiaryId] = useState<string | null>(diaryIdParam);
+  const week = useWeekDiaries(screen === 'Home' || screen === 'Diary', live);
   const [liveDiary, setLiveDiary] = useState<Diary | null>(null);
   const [editor, setEditor] = useState({ title: '', content: '' });
   const [busy, setBusy] = useState(false);
@@ -147,6 +151,8 @@ export default function App() {
     navigate(`/diary/${write ? 'write' : 'detail'}?id=${encodeURIComponent(id)}`, replace);
     setDiaryId(id); setScreen(write ? 'DiaryEditor' : 'DiaryDetail'); setNotice(''); setViewSession(null); setShowProgress(false);
   };
+  const openWeekDiary = (diary: Diary) => (live ? openDiary(diary.id) : openDiaryDate(diary.entryDate));
+  const emptyDay = (date: string) => setNotice(`${Number(date.slice(5, 7))}월 ${Number(date.slice(8))}일에는 남긴 기록이 없어요.`);
   async function saveLiveDiary() {
     const title = editor.title.trim(), content = editor.content.trim();
     if (!title) { setNotice('제목을 입력해 주세요.'); return; }
@@ -277,8 +283,7 @@ export default function App() {
   if (screen === 'Home') {
     link(['94:104'], '마이페이지', 'MyPage'); link(['10:530','10:518','10:480'], '대화 시작하기', 'Chat');
     link(['10:504'], '캐릭터 선택', 'Characters'); link(['17:17'], '오늘의 기록', 'Diary');
-    link(['17:40','106:90','94:191'], '마음 캘린더', 'Calendar'); link(['17:48'], '대화 보관함', 'Archive');
-    link(['106:84'], '지난 일기 보기', 'DiaryDetail');
+    link(['17:40','106:90'], '마음 캘린더', 'Calendar'); link(['17:48'], '대화 보관함', 'Archive');
   }
   if (screen === 'MyPage') {
     link(['97:80','33:3972','33:4039'], '내 정보', 'Profile');
@@ -303,7 +308,7 @@ export default function App() {
     actions['28:3192'] = ['이번 달 기록', () => chooseFilter({ ...diaryFilter, mode: 'thisMonth' })];
     actions['155:119'] = ['이번 주 기록', () => chooseFilter({ ...diaryFilter, mode: 'thisWeek' })];
     link(['28:3046','28:3210'], '오늘을 기록하러 가기', 'DiaryChoice');
-    link(['28:3054','155:214'], '지난 일기 보기', 'DiaryDetail'); link(['28:3187','28:3211','155:143'], '마음 캘린더', 'Calendar');
+    link(['28:3054','155:214'], '지난 일기 보기', 'DiaryDetail'); link(['28:3187','28:3211'], '마음 캘린더', 'Calendar');
   }
   if (screen === 'DiaryChoice') { link(['33:3928'], '모우와 대화하고 자동 기록하기', 'Chat'); link(['33:3927'], '직접 작성하기', 'DiaryEditor'); actions['227:138'] = ['닫기', back]; }
   if (screen === 'DiaryEditor') actions['155:606'] = ['일기 저장', live ? () => { void saveLiveDiary(); } : () => { if (diaryText) localStorage.setItem('mowoo.diary', diaryText); go('DiarySaved'); }];
@@ -359,6 +364,28 @@ export default function App() {
           children = [<p key="joined">{joined?.label ?? '가입일 정보 없음'}</p>, <p key="days">{joined ? `함께한 지 ${joined.days}일` : ''}</p>];
         }
         if (id === '33:4038' && myPageStats.error) children = [...Children.toArray(children), <button key="retry-stats" type="button" className="mypage-stats-retry" onClick={myPageStats.retry}>{myPageStats.error} · 다시 시도</button>];
+      }
+      if (screen === 'Home' && (id === '10:525' || id === '10:541') && profile.nickname) {
+        // The design's placeholder name "User" becomes the user's nickname.
+        const rename = (node: ReactNode): ReactNode => typeof node === 'string' ? node.replace(/^User(\s?)$/, `${profile.nickname}$1`)
+          : isValidElement<{ children?: ReactNode }>(node) ? cloneElement(node, {}, Children.map(node.props.children, rename)) : node;
+        children = Children.map(children, rename);
+        // Keep the arrow right after the title however long the nickname is.
+        if (id === '10:541') {
+          children = [...Children.toArray(children), <img key="title-arrow" className="home-week-arrow" src="/assets/1562d.svg" alt="" />];
+          extra.className = `${props.className ?? ''} home-week-title`;
+        }
+      }
+      if (screen === 'Home' && id === '106:88' && profile.nickname) return null;
+      if (screen === 'Diary' && id === '28:3048') {
+        const [y, m, d] = todaySeoul().split('-').map(Number);
+        children = [`${y}년 ${m}월 ${d}일`];
+      }
+      if ((screen === 'Diary' || screen === 'Home') && id === screens[screen].nodeId) {
+        children = [...Children.toArray(children), screen === 'Diary'
+          ? <WeekRow key="week-row" top={439} left={27} days={week.days} byDate={week.byDate} onOpen={openWeekDiary} onEmpty={emptyDay} />
+          : [<WeekRow key="week-row" top={867} left={27} days={week.days} byDate={week.byDate} onOpen={openWeekDiary} onEmpty={emptyDay} />,
+             <WeekList key="week-list" top={944} left={28} byDate={week.byDate} onOpen={openWeekDiary} />]];
       }
       if (screen === 'Diary') {
         // Filter chips: the chosen one is teal, the others grey (as in the design).
