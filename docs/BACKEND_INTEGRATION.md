@@ -6,7 +6,7 @@
 
 - `src/lib/http.ts`: HTTP 요청·Bearer 헤더·토큰 저장. `src/features/auth/api.ts`, `src/features/profile/api.ts`: 도메인별 API 함수.
 - `src/features/auth/useAuth.ts`: 카카오 콜백·인증. `src/hooks/useProfile.ts`: 인증 변경 시 프로필 조회와 저장·실패 복구. `src/App.tsx`: 화면과 기능 연결.
-- `vite.config.ts`: `/api` 요청을 백엔드 8080으로 전달.
+- `vite.config.ts`: `/api` 요청을 `API_PROXY_TARGET`(기본 `http://localhost:8080`)으로 전달. 배포 서버를 쓰려면 `.env.local`에 `API_PROXY_TARGET=https://api.mowoo.kro.kr`를 넣고 개발 서버를 다시 실행합니다. Swagger: https://api.mowoo.kro.kr/swagger-ui/index.html
 - 개발 프록시를 쓰므로 브라우저에는 프론트와 같은 출처의 `/api` 요청으로 보입니다. 백엔드를 직접 호출하는 구조로 바꾸면 백엔드 CORS 허용 출처와 쿠키 정책도 맞춰야 합니다.
 
 ## 1. 로컬 환경 준비

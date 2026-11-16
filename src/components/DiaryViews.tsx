@@ -57,23 +57,86 @@ const loadFromServer: MonthLoader = async (from, to, month) => {
 };
 
 /** Logged-out preview: sample diaries on the 1st, 5th and 6th of every month (as drawn in the design). */
+/** Sunday..Saturday (Seoul dates) of the week containing today. */
+export function thisWeek(): string[] {
+  const [y, m, d] = todaySeoul().split('-').map(Number);
+  const sunday = new Date(y, m - 1, d - new Date(y, m - 1, d).getDay());
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i);
+    return `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+  });
+}
+
+/**
+ * Logged-out preview samples: the 1st, 5th and 6th of every month (as drawn in the design)
+ * plus the first days of this week, so the calendar and the weekly views both have content.
+ */
 export function previewDiaries(from: string, to: string): Diary[] {
-  const month = from.slice(0, 7);
-  const samples: [number, string, string, string][] = [
+  const monthly: [number, string, string, string][] = [
     [1, '#f7dc7c', '새 달의 시작', '새로운 달이 시작됐다. 이번 달에는 조금 더 나를 챙기고 싶다.'],
     [5, '#7aa8f5', '면접을 앞둔 날', '낮에는 괜찮은 척했는데, 저녁이 되니 마음이 자꾸 가라앉는다.'],
     [6, '#7ce3a1', '조금 가벼워진 날', '모우와 이야기하고 나니 걱정이 한결 정리됐다.'],
   ];
+  const weekly: [string, string, string][] = [
+    ['#7ce3a1', '귀가하다 타코야키 트럭을 만난 날', '별거 아닌데 기분이 좋아졌다.'],
+    ['#7aa8f5', '친구와 오래 통화한 날', '서로 바빠서 못 했던 이야기를 실컷 나눴다.'],
+    ['#f29b9b', '마감에 쫓긴 날', '하루 종일 정신없었지만 끝내고 나니 후련하다.'],
+  ];
   const today = todaySeoul();
-  const diaries: Diary[] = samples
-    .map(([day, color, title, content]) => ({ date: `${month}-${pad(day)}`, color, title, content }))
-    .filter(({ date }) => date >= from && date <= to && date <= today)
-    .reverse()
-    .map(({ date, color, title, content }) => ({
+  const byDate = new Map<string, [string, string, string]>();
+  const months = new Set([from.slice(0, 7), to.slice(0, 7)]);
+  months.forEach(month => monthly.forEach(([day, color, title, content]) => byDate.set(`${month}-${pad(day)}`, [color, title, content])));
+  thisWeek().slice(0, 3).forEach((date, i) => byDate.set(date, weekly[i]));
+  return [...byDate.entries()]
+    .filter(([date]) => date >= from && date <= to && date <= today)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, [color, title, content]]) => ({
       id: `preview-${date}`, sourceSessionId: null, entryDate: date, title, content, savedAt: date, emotionConfirmedAt: date,
       emotions: [{ id: color, code: '', name: '', colorHex: color, iconUrl: null, isPrimary: true }], attachments: [],
     }));
-  return diaries;
+}
+
+/** This week's diaries: server data when logged in, preview samples otherwise. */
+export function useWeekDiaries(enabled: boolean, live: boolean) {
+  const days = thisWeek();
+  const [diaries, setDiaries] = useState<Diary[]>(() => (live ? [] : previewDiaries(days[0], days[6])));
+  useEffect(() => {
+    if (!enabled) return;
+    if (!live) { setDiaries(previewDiaries(days[0], days[6])); return; }
+    let active = true;
+    diaryApi.list({ from: days[0], to: days[6], limit: 50 }).then(page => { if (active) setDiaries(page.items); }).catch(() => { if (active) setDiaries([]); });
+    return () => { active = false; };
+  }, [enabled, live, days[0]]); // eslint-disable-line react-hooks/exhaustive-deps
+  const byDate = new Map<string, Diary>();
+  [...diaries].sort((a, b) => a.entryDate.localeCompare(b.entryDate)).forEach(d => { if (!byDate.has(d.entryDate)) byDate.set(d.entryDate, d); });
+  return { days, byDate };
+}
+
+/** One row of this week's dates (Sun..Sat) with a mood blob on days that have a diary. */
+export function WeekRow({ top, left, days, byDate, onOpen, onEmpty }: { top: number; left: number; days: string[]; byDate: Map<string, Diary>; onOpen: (diary: Diary) => void; onEmpty: (date: string) => void }) {
+  const today = todaySeoul();
+  return <div className="week-row" style={{ top, left }}>
+    {days.map(date => {
+      const diary = byDate.get(date), day = Number(date.slice(8));
+      return <button key={date} type="button" className={`week-day${diary ? ' has-diary' : ''}${date === today ? ' is-today' : ''}`}
+        aria-label={`${Number(date.slice(5, 7))}월 ${day}일${diary ? ' 기록 보기' : ''}`}
+        onClick={() => diary ? onOpen(diary) : onEmpty(date)}>
+        {diary && <Blob color={primaryColor(diary)} />}<span>{day}</span>
+      </button>;
+    })}
+  </div>;
+}
+
+/** Home "이번주 기록": up to four of this week's diaries, oldest first, like the design. */
+export function WeekList({ top, left, byDate, onOpen }: { top: number; left: number; byDate: Map<string, Diary>; onOpen: (diary: Diary) => void }) {
+  const entries = [...byDate.values()].slice(0, 4);
+  return <div className="week-list" style={{ top, left }}>
+    {entries.length === 0 && <p className="week-empty">이번 주에 남긴 기록이 아직 없어요.</p>}
+    {entries.map(diary => <button key={diary.id} type="button" className="week-item" onClick={() => onOpen(diary)}>
+      <span className="week-item-day"><Blob color={primaryColor(diary)} /><span>{Number(diary.entryDate.slice(8))}</span></span>
+      <span className="week-item-text">{diary.title}</span>
+    </button>)}
+  </div>;
 }
 
 /** Mind calendar month grid + that month's diaries. Days with a diary show a mood blob. */

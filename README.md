@@ -9,6 +9,8 @@ npm ci
 npm run dev
 ```
 
+배포된 백엔드(https://api.mowoo.kro.kr)에 붙이려면 `.env.local`에 `API_PROXY_TARGET=https://api.mowoo.kro.kr`를 넣으세요. 비우면 로컬 백엔드(8080)로 연결합니다.
+
 카카오 로그인은 `.env.local`과 백엔드 실행이 필요합니다. 설정과 전체 API 연동은 [백엔드 연동 문서](docs/BACKEND_INTEGRATION.md), 인증은 [카카오 로그인 문서](docs/AUTH.md)를 참고하세요. UI만 확인하려면 /home으로 직접 접근합니다.
 
 ## 포함 범위
