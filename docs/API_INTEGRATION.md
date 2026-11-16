@@ -9,6 +9,7 @@
 | 대화 `/chat` | `POST/GET /chat-sessions`, `GET/PATCH /chat-sessions/{id}`, `POST …/messages`, `PATCH …/messages/{id}` |
 | 대화 시작 캐릭터 | My 캐릭터에서 고른 보유 캐릭터, 없으면 `GET /characters`의 첫 보유 캐릭터 UUID |
 | 보관함 `/archive` | `GET /chat-sessions` (제목·요약이 null이면 "제목 없음") |
+| 보관함 대화 삭제 | 확인 후 `DELETE /chat-sessions/{id}`. 성공 또는 이미 삭제된 대화만 목록에서 제거하고, 삭제한 대화가 현재 진행 중이면 재진입 정보를 정리합니다. 생성된 일기는 보존합니다. |
 | AI 일기 생성 | 5왕복 후 대화 종료(`PATCH {action:END}`) → `PUT /chat-sessions/{id}/diary-draft?entryDate=` → 작성 화면 |
 | 일기 작성·수정 `/diary/write[?id=]` | 새 글 `POST /diaries`, 초안·수정 `PATCH /diaries/{id}` (`save:true`) |
 | 일기 상세 `/diary/detail?id=` | `GET /diaries/{id}` (사진 첨부가 없으면 예시 사진 숨김) |
