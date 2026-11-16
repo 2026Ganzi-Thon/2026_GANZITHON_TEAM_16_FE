@@ -14,6 +14,7 @@
     "check:controls": "node scripts/verify-toggle-controls.mjs",
     "check:auth": "node scripts/verify-auth.mjs",
     "check:auth-refresh": "node scripts/verify-auth-refresh.mjs",
+    "check:diary-emotions": "node scripts/verify-diary-emotions.mjs",
     "check:profile-api": "node scripts/verify-profile-api.mjs",
     "check:character-api": "node scripts/verify-character-api.mjs",
     "check:mypage-stats": "node scripts/verify-mypage-stats.mjs",

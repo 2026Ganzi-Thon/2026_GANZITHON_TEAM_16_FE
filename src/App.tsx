@@ -16,6 +16,7 @@ import { LiveCalendar, LiveDeleteList, LiveDiaryList } from './components/DiaryV
 import { diaryApi, todaySeoul, type Diary } from './features/diary/api';
 import { tokens } from './lib/http';
 import { membership, useMyPageStats } from './features/profile/useMyPageStats';
+import DiaryEmotions from './components/DiaryEmotions';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -426,6 +427,11 @@ export default function App() {
         if (id === '155:851') children = [diaryDateLabelFor(live ? liveDiary?.entryDate ?? todaySeoul() : todaySeoul())];
       }
       if (live && screen === 'DiaryDetail' && id === '113:2807') { children = [liveDiary?.title ?? '']; extra.className = `${props.className ?? ''} diary-title-live`; }
+      if (live && screen === 'DiaryDetail' && id === '155:592') {
+        const primary = liveDiary?.emotionConfirmedAt ? liveDiary.emotions.find(emotion => emotion.isPrimary) : null;
+        children = [<span key="confirmed-emotion" className="emotion-dot" style={{ width: '100%', height: '100%', background: primary?.colorHex ?? '#c7d4cf' }} />];
+        extra.title = primary?.name ?? '감정 미확정';
+      }
       if (live && screen === 'DiaryDetail' && id === '155:598') {
         const photo = liveDiary?.attachments.find(a => a.mimeType.startsWith('image/'));
         if (!photo) return null;
@@ -522,6 +528,7 @@ export default function App() {
         />}
         {!previewOnly && screen === 'Chat' && showProgress && <div className="progress-layer" role="dialog" aria-modal="true" aria-label="대화 진행도">{progressModal()}</div>}
         {!previewOnly && screen === 'Archive' && <ArchiveList onOpen={openSession} onError={setNotice} />}
+        {!previewOnly && live && screen === 'DiaryDetail' && liveDiary && <DiaryEmotions key={liveDiary.id} diary={liveDiary} onConfirmed={setLiveDiary} />}
         {!previewOnly && live && screen === 'DeleteSelected' && <LiveDeleteList selected={selectedDiaries} onToggle={id => setSelectedDiaries(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; })} />}
       </div>
     </main>
