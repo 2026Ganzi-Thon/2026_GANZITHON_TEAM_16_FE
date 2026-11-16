@@ -4,6 +4,7 @@ import { characterApi } from '../features/characters/api';
 import { characterCatalog } from '../features/characters/catalog';
 import { isLiveApi } from '../features/chat/api';
 import type { ChatMessage } from '../features/chat/types';
+import PastDiarySuggestions from './PastDiarySuggestions';
 
 interface Props {
   messages: ChatMessage[];
@@ -16,9 +17,16 @@ interface Props {
   onEdit: (messageId: string, content: string) => Promise<boolean>;
   onCharacter: () => void;
   activeCharacterId?: string | null;
+  disabled: boolean;
+  draftError: string;
+  sessionId: string | null;
+  usePastDiaries: boolean;
+  comparing: boolean;
+  onReference: (messageId: string, diaryId: string) => Promise<string | null>;
+  onOpenDiary: (id: string) => void;
 }
 
-export default function ChatThread({ messages, pending, loading, closed, hasOlder, editableId, onLoadOlder, onEdit, onCharacter, activeCharacterId }: Props) {
+export default function ChatThread({ messages, pending, loading, closed, hasOlder, editableId, onLoadOlder, onEdit, onCharacter, activeCharacterId, disabled, draftError, sessionId, usePastDiaries, comparing, onReference, onOpenDiary }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const keepFromBottom = useRef<number | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string; saving: boolean } | null>(null);
@@ -46,7 +54,7 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
     } else {
       node.scrollTop = node.scrollHeight;
     }
-  }, [messages, pending]);
+  }, [messages, pending, draftError]);
   useEffect(() => { if (editing && editing.id !== editableId) setEditing(null); }, [editableId, editing]);
 
   async function loadOlder() {
@@ -55,7 +63,7 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
     await onLoadOlder();
   }
   async function saveEdit() {
-    if (!editing || editing.saving || !editing.text.trim()) return;
+    if (!editing || editing.saving || disabled || !editing.text.trim()) return;
     setEditing({ ...editing, saving: true });
     const ok = await onEdit(editing.id, editing.text);
     setEditing(ok ? null : { ...editing, saving: false });
@@ -70,7 +78,7 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
         const fallback = character?.fallback ?? defaultCharacter.image;
         if (event.currentTarget.getAttribute('src') !== fallback) event.currentTarget.src = fallback;
       }} /> : <span className="chat-avatar" aria-hidden="true" />}
-      <button type="button" className="chat-character" onClick={onCharacter}>
+      <button type="button" className="chat-character" disabled={disabled} onClick={onCharacter}>
         {character?.name ?? (preview ? defaultCharacter.name : '모우')}
         <img src="/assets/5baa7.svg" alt="" />
       </button>
@@ -80,7 +88,7 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
 
   return (
     <div className="chat-thread" ref={scroller} data-scroll-key="chat-thread" role="log" aria-label="대화 내용" aria-busy={loading || pending !== null}>
-      {hasOlder && <button type="button" className="chat-older" onClick={() => { void loadOlder(); }}>이전 대화 더 보기</button>}
+      {hasOlder && <button type="button" className="chat-older" disabled={disabled} onClick={() => { void loadOlder(); }}>이전 대화 더 보기</button>}
       {!loading && messages.length === 0 && !pending && (
         <p className="chat-empty">{closed ? '대화 내용이 없어요.' : '모우에게 오늘 있었던 일을 편하게 들려주세요.'}</p>
       )}
@@ -104,17 +112,25 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
             <p className="chat-bubble-user">{message.content}</p>
           )}
           {message.id === editableId && editing?.id !== message.id && (
-            <button type="button" className="chat-edit-link" onClick={() => setEditing({ id: message.id, text: message.content, saving: false })}>
+            <button type="button" className="chat-edit-link" disabled={disabled} onClick={() => setEditing({ id: message.id, text: message.content, saving: false })}>
               내용 수정<img src="/assets/6eaf6.svg" alt="" />
             </button>
           )}
+          {!closed && !loading && usePastDiaries && sessionId && message.id === [...messages].reverse().find(value => value.senderRole === 'USER')?.id && !editing && <PastDiarySuggestions
+            key={`${sessionId}-${message.id}-${message.editedAt}-${message.content}`} sessionId={sessionId} messageId={message.id} concern={message.content}
+            disabled={disabled} onReference={onReference} onOpenDiary={onOpenDiary} />}
         </div>
       ) : (
         <div key={message.id} className="chat-row">
           {assistantHeader(message.characterId)}
           <p className="chat-bubble-assistant">{message.content}</p>
+          {(message.diaryReferences ?? []).map(reference => <button type="button" className="chat-diary-reference" key={reference.diaryId} disabled={disabled} onClick={() => onOpenDiary(reference.diaryId)}>
+            <span>함께 돌아본 일기 · {reference.entryDate}</span><strong>{reference.title || '제목 없음'}</strong><span>일기 열기 ›</span>
+          </button>)}
         </div>
       ))}
+      {draftError && <p className="chat-draft-error" role="alert">{draftError}</p>}
+      {comparing && <p className="chat-comparison-status" role="status">과거 일기와 비교하는 중이에요…</p>}
       {pending && <>
         <div className="chat-row chat-row-user"><p className="chat-bubble-user is-pending">{pending}</p></div>
         <div className="chat-row">

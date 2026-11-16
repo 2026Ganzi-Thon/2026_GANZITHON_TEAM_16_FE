@@ -39,8 +39,8 @@ export const diaryApi = {
   update: (diaryId: string, body: { title?: string; content?: string; entryDate?: string; save?: boolean }) =>
     request<Diary>(`/api/v1/diaries/${id(diaryId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
   /** AI draft after 5 turns; returns the existing diary if the chat already has one. */
-  draftFromChat: (sessionId: string, entryDate: string) =>
-    request<Diary>(`/api/v1/chat-sessions/${id(sessionId)}/diary-draft${query({ entryDate })}`, { method: 'PUT' }),
+  draftFromChat: (sessionId: string, entryDate: string, signal?: AbortSignal) =>
+    request<Diary>(`/api/v1/chat-sessions/${id(sessionId)}/diary-draft${query({ entryDate })}`, { method: 'PUT', signal }),
   calendar: (month: string) => request<{ month: string; days: CalendarDay[] }>(`/api/v1/calendar${query({ month })}`),
   deleteDiaries: (diaryIds: string[]) =>
     request('/api/v1/diaries/bulk-delete', { method: 'POST', body: JSON.stringify({ diaryIds }) }),

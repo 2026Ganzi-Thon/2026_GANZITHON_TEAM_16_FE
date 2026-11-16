@@ -95,8 +95,16 @@ export default function App() {
   const [viewSession, setViewSession] = useState<string | null>(sessionParam);
   const [showProgress, setShowProgress] = useState(false);
   const chat = useChat(screen === 'Chat', viewSession, setNotice);
+  const [draftGenerating, setDraftGenerating] = useState(false);
+  const [draftError, setDraftError] = useState('');
+  const draftOperation = useRef<AbortController | null>(null);
   // Logged in -> real API; logged out -> local preview data.
   const [live, setLive] = useState(() => Boolean(tokens.get()));
+  useEffect(() => {
+    draftOperation.current?.abort(); draftOperation.current = null;
+    setDraftGenerating(false); setDraftError('');
+    return () => draftOperation.current?.abort();
+  }, [screen, viewSession, live]);
   const myPageStats = useMyPageStats(live && screen === 'MyPage' && !location.pathname.startsWith('/design/'));
   useEffect(() => {
     const changed = () => setLive(Boolean(tokens.get()));
@@ -181,24 +189,31 @@ export default function App() {
   }
   async function sendMessage() {
     const text = message.trim();
-    if (!text || chat.pending || chat.closed) return;
+    if (!text || chat.working || draftGenerating || chat.closed) return;
     setMessage('');
     if (!(await chat.send(text))) setMessage(text);
   }
   async function generateDiary() {
-    if (chat.closed || chat.pending) return;
+    if (draftOperation.current || chat.working || chat.loading) return;
     if (!chat.canGenerate) { setShowProgress(true); return; }
-    const finished = await chat.finish();
-    if (!finished) return;
-    if (live) {
-      // Server AI draft (returns the existing diary if this chat already has one).
-      try { openDiary((await diaryApi.draftFromChat(finished.sessionId, todaySeoul())).id, true); }
-      catch (error) { setNotice((error as Error).message); }
-      return;
+    const operation = new AbortController(); draftOperation.current = operation;
+    setDraftGenerating(true); setDraftError('');
+    try {
+      const finished = await chat.finish();
+      if (!finished || operation.signal.aborted) return;
+      if (live) {
+        // Keep the ended session in the URL so refresh can resume a failed draft.
+        navigate(`/chat?session=${encodeURIComponent(finished.sessionId)}`, true);
+        const diary = await diaryApi.draftFromChat(finished.sessionId, todaySeoul(), operation.signal);
+        if (!operation.signal.aborted) openDiary(diary.id, !diary.savedAt);
+        return;
+      }
+      setDiaryText(finished.lines.join('\n')); go('DiaryEditor');
+    } catch (error) {
+      if (!operation.signal.aborted) setDraftError(`${(error as Error).message} 아래 일기 생성 버튼으로 다시 시도할 수 있어요.`);
+    } finally {
+      if (draftOperation.current === operation) { draftOperation.current = null; setDraftGenerating(false); }
     }
-    // Preview: a local draft from the user's own words in this chat.
-    setDiaryText(finished.lines.join('\n'));
-    go('DiaryEditor');
   }
   const back = () => {
     if (returnToPrevious()) return;
@@ -422,9 +437,12 @@ export default function App() {
         return <button key={id} data-node-id={id} className={`${props.className} setting-switch ${profile[field] ? 'is-on' : ''}`} type="button" role="switch" aria-checked={profile[field]} aria-busy={savingSetting === field} disabled={savingSetting !== null} aria-label={field === 'usePastDiaries' ? '과거 일기를 대화에 사용' : '저녁 모우 알림'} onClick={() => { void toggleSetting(field); }}><span /></button>;
       }
       if (screen === 'Chat' && id === '17:374') children = [<input key="message" className="message-input" aria-label="메시지" maxLength={1000} disabled={chat.closed} placeholder={chat.closed ? '종료된 대화예요' : '모우에게 이야기해 보세요'} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void sendMessage(); } }} />];
-      if (screen === 'Chat' && id === '97:52' && (chat.closed || chat.pending || !message.trim())) extra['aria-disabled'] = true;
+      if (screen === 'Chat' && id === '97:52' && (chat.closed || chat.working || draftGenerating || !message.trim())) extra['aria-disabled'] = true;
       if (screen === 'Chat' && id === '30:3559') {
-        if (chat.closed || chat.loading) return null;
+        if (chat.loading || (chat.closed && (!live || !chat.canGenerate))) return null;
+        if (draftGenerating || chat.working) { extra.disabled = true; extra['aria-disabled'] = true; }
+        if (draftGenerating) children = ['일기를 생성하고 있어요…'];
+        else if (chat.closed) children = ['대화로 만든 일기 생성·열기'];
         if (chat.canGenerate) extra.className = `${extra.className ?? props.className ?? ''} is-ready`;
         else extra['aria-label'] = `오늘 대화로 일기 자동 생성 (대화 ${chat.turns}/${REQUIRED_TURNS}회)`;
       }
@@ -552,6 +570,13 @@ export default function App() {
           hasOlder={chat.hasOlder} editableId={chat.editableId} onLoadOlder={chat.loadOlder} onEdit={chat.edit}
           onCharacter={() => go('Characters')}
           activeCharacterId={chat.session?.characterId ?? homeCharacter?.id}
+          disabled={chat.working || draftGenerating}
+          draftError={draftError}
+          sessionId={chat.session?.id ?? null}
+          usePastDiaries={live && profile.usePastDiaries}
+          comparing={chat.comparing}
+          onReference={chat.referenceDiary}
+          onOpenDiary={id => openDiary(id)}
         />}
         {!previewOnly && screen === 'Chat' && showProgress && <div className="progress-layer" role="dialog" aria-modal="true" aria-label="대화 진행도">{progressModal()}</div>}
         {!previewOnly && screen === 'Archive' && <ArchiveList onOpen={openSession} onError={setNotice} />}

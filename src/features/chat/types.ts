@@ -8,6 +8,8 @@ export interface DiaryReference {
   acceptedAt: string;
 }
 
+export interface DiarySuggestion { diaryId: string; entryDate: string; title: string }
+
 export interface ChatMessage {
   id: string;
   sequenceNo: number;
@@ -64,6 +66,7 @@ export type ChatErrorCode =
   | 'MESSAGE_EMPTY'
   | 'MESSAGE_NOT_FOUND'
   | 'MESSAGE_NOT_EDITABLE'
+  | 'PAST_DIARY_DISABLED'
   | 'AI_UNAVAILABLE';
 
 export class ChatApiError extends Error {
@@ -80,6 +83,8 @@ export interface ChatApi {
   deleteSession(sessionId: string): Promise<void>;
   sendMessage(sessionId: string, body: { content: string; characterId?: string }): Promise<SendResult>;
   editMessage(sessionId: string, messageId: string, body: { content: string }): Promise<EditResult>;
+  suggestDiaries(sessionId: string, messageId: string, signal?: AbortSignal): Promise<{ items: DiarySuggestion[] }>;
+  referenceDiary(sessionId: string, body: { messageId: string; diaryId: string }): Promise<{ assistantMessage: ChatMessage }>;
 }
 
 /** Turns needed before the server sets canGenerateDiary. */
