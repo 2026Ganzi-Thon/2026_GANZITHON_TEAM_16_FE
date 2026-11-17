@@ -11,6 +11,7 @@ export interface DiaryReference {
 export interface DiarySuggestion { diaryId: string; entryDate: string; title: string }
 
 export interface ChatMessage {
+  attachments?: import('../attachments').PhotoAttachment[];
   id: string;
   sequenceNo: number;
   senderRole: 'USER' | 'ASSISTANT';
@@ -81,7 +82,7 @@ export interface ChatApi {
   getSession(sessionId: string, params?: { limit?: number; cursor?: string | null }): Promise<SessionDetail>;
   endSession(sessionId: string): Promise<ChatSession>;
   deleteSession(sessionId: string): Promise<void>;
-  sendMessage(sessionId: string, body: { content: string; characterId?: string }): Promise<SendResult>;
+  sendMessage(sessionId: string, body: { content: string; characterId?: string }, files?: File[]): Promise<SendResult>;
   editMessage(sessionId: string, messageId: string, body: { content: string }): Promise<EditResult>;
   suggestDiaries(sessionId: string, messageId: string, signal?: AbortSignal): Promise<{ items: DiarySuggestion[] }>;
   referenceDiary(sessionId: string, body: { messageId: string; diaryId: string }): Promise<{ assistantMessage: ChatMessage }>;

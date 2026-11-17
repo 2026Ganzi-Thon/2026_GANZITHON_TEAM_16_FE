@@ -1,6 +1,7 @@
 // Diary, calendar and record APIs (backend develop: DiaryController, DiaryDraftController,
 // CalendarController, RecordController, AuthController#withdraw). Used only when logged in.
 import { request } from '../../lib/http';
+import { photoBody } from '../attachments';
 
 export interface DiaryEmotion { id: string; code: string; name: string; colorHex: string | null; iconUrl: string | null; isPrimary: boolean }
 export interface EmotionType { id: string; code: string; name: string; colorHex: string | null; iconUrl: string | null }
@@ -31,14 +32,14 @@ export const diaryApi = {
   emotionTypes: (signal?: AbortSignal) => request<{ items: EmotionType[] }>('/api/v1/emotion-types', { signal }),
   suggestEmotions: (diaryId: string, signal?: AbortSignal) => request<{ suggestedEmotionIds: string[]; primaryEmotionId: string }>(`/api/v1/diaries/${id(diaryId)}/emotion-suggestions`, { method: 'POST', signal }),
   confirmEmotions: (diaryId: string, emotionIds: string[], primaryEmotionId: string, signal?: AbortSignal) => request<Diary>(`/api/v1/diaries/${id(diaryId)}/emotions`, { method: 'PUT', body: JSON.stringify({ emotionIds, primaryEmotionId }), signal }),
-  create: (body: { entryDate: string; title: string; content: string }) =>
-    request<Diary>('/api/v1/diaries', { method: 'POST', body: JSON.stringify(body) }),
+  create: (body: { entryDate: string; title: string; content: string }, files?: File[]) =>
+    request<Diary>('/api/v1/diaries', { method: 'POST', body: photoBody(body, files) }),
   get: (diaryId: string) => request<Diary>(`/api/v1/diaries/${id(diaryId)}`),
   list: (params: { from?: string; to?: string; limit?: number; cursor?: string | null } = {}, signal?: AbortSignal) =>
     request<{ items: Diary[]; nextCursor: string | null }>(`/api/v1/diaries${query(params)}`, { signal }),
   /** Fields left out stay unchanged; save:true confirms an AI draft. */
-  update: (diaryId: string, body: { title?: string; content?: string; entryDate?: string; save?: boolean }) =>
-    request<Diary>(`/api/v1/diaries/${id(diaryId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  update: (diaryId: string, body: { title?: string; content?: string; entryDate?: string; save?: boolean; removeAttachmentIds?: string[] }, files?: File[]) =>
+    request<Diary>(`/api/v1/diaries/${id(diaryId)}`, { method: 'PATCH', body: photoBody(body, files) }),
   /** AI draft after 5 turns; returns the existing diary if the chat already has one. */
   draftFromChat: (sessionId: string, entryDate: string, signal?: AbortSignal) =>
     request<Diary>(`/api/v1/chat-sessions/${id(sessionId)}/diary-draft${query({ entryDate })}`, { method: 'PUT', signal }),

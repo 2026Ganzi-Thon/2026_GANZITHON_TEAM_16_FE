@@ -19,6 +19,8 @@ import { tokens } from './lib/http';
 import { membership, useMyPageStats } from './features/profile/useMyPageStats';
 import DiaryEmotions from './components/DiaryEmotions';
 import { useEmotionReminders } from './features/diary/useEmotionReminders';
+import { validatePhotos } from './features/attachments';
+import { SavedPhotos, SelectedPhotos } from './components/Photos';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -132,7 +134,8 @@ export default function App() {
   const [savingSetting, setSavingSetting] = useState<string | null>(null);
   const settingPending = useRef(false);
   const [diaryText, setDiaryText] = useState(() => localStorage.getItem('mowoo.diary') ?? '');
-  const [attachment, setAttachment] = useState('');
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [removedPhotos, setRemovedPhotos] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const previewOnly = location.pathname.startsWith('/design/');
@@ -173,11 +176,12 @@ export default function App() {
     setBusy(true);
     try {
       const saved = diaryId
-        ? await diaryApi.update(diaryId, { title, content, save: true })
-        : await diaryApi.create({ entryDate: todaySeoul(), title, content });
+        ? await diaryApi.update(diaryId, { title, content, save: true, removeAttachmentIds: removedPhotos }, photos)
+        : await diaryApi.create({ entryDate: todaySeoul(), title, content }, photos);
       if (liveDiary?.emotionConfirmedAt && content !== liveDiary.content && !saved.emotionConfirmedAt) emotionReminders.mark(saved.id, true);
       else if (saved.emotionConfirmedAt) emotionReminders.mark(saved.id, false);
       setLiveDiary(saved);
+      setPhotos([]); setRemovedPhotos([]);
       navigate(`/diary/saved?id=${encodeURIComponent(saved.id)}`, true); setDiaryId(saved.id); setScreen('DiarySaved');
     } catch (error) { setNotice((error as Error).message); }
     finally { setBusy(false); }
@@ -195,9 +199,10 @@ export default function App() {
   }
   async function sendMessage() {
     const text = message.trim();
-    if (!text || chat.working || draftGenerating || chat.closed) return;
+    if ((!text && !photos.length) || chat.working || draftGenerating || chat.closed || chat.loading) return;
     setMessage('');
-    if (!(await chat.send(text))) setMessage(text);
+    if (!(await chat.send(text, photos))) setMessage(text);
+    else setPhotos([]);
   }
   async function generateDiary() {
     if (draftOperation.current || chat.working || chat.loading) return;
@@ -266,7 +271,7 @@ export default function App() {
     }).catch(error => active && setNotice(error.message));
     return () => { active = false; };
   }, [live, screen, diaryId]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => () => { if (attachment) URL.revokeObjectURL(attachment); }, [attachment]);
+  useEffect(() => { setPhotos([]); setRemovedPhotos([]); }, [screen, diaryId, viewSession, live, profile.id]);
 
   async function saveProfile(next: Partial<Profile>) {
     const updated = await persistProfile(next);
@@ -364,8 +369,11 @@ export default function App() {
       <button key="home-logo" type="button" className="chat-home-logo" aria-label="홈으로 이동" onClick={() => go('Home')} />];
     if (['120:460','113:2809','33:3939'].includes(id)) Object.assign(extra, { 'data-scroll-key':id, tabIndex:0, role:'region', 'aria-label':id === '120:460' ? '캐릭터 설명' : '일기 본문' });
     if (['Diary','Calendar','Archive'].includes(screen) && id === screens[screen].nodeId) extra['data-scroll-key'] = screen;
-    if (name === 'tabler:photo' && screen === 'DiaryEditor') action = ['사진 첨부', () => fileInput.current?.click()];
-    if (name === 'tabler:photo' && screen === 'Chat') action = ['사진 첨부', () => setNotice('대화에서는 아직 사진을 보낼 수 없어요.')];
+    if (name === 'tabler:photo' && (screen === 'DiaryEditor' || screen === 'Chat')) action = ['사진 첨부', () => {
+      if (!live) { setNotice('사진 첨부는 로그인 후 사용할 수 있어요.'); return; }
+      if (busy || chat.working || draftGenerating || (screen === 'Chat' && (chat.closed || chat.loading))) return;
+      fileInput.current?.click();
+    }];
     if (name === 'tabler:microphone') action = ['음성 입력', () => setNotice('음성 입력은 아직 연결되지 않았어요.')];
     if (action) { const [label, run] = action; Object.assign(extra, { role: 'button', tabIndex: extra.disabled ? -1 : 0, 'aria-label': label, className: `${props.className ?? ''} design-action`, onClick: (e: React.MouseEvent) => { e.stopPropagation(); run(); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); run(); } } }); }
     if (!previewOnly) {
@@ -443,7 +451,7 @@ export default function App() {
         return <button key={id} data-node-id={id} className={`${props.className} setting-switch ${profile[field] ? 'is-on' : ''}`} type="button" role="switch" aria-checked={profile[field]} aria-busy={savingSetting === field} disabled={savingSetting !== null} aria-label={field === 'usePastDiaries' ? '과거 일기를 대화에 사용' : '저녁 모우 알림'} onClick={() => { void toggleSetting(field); }}><span /></button>;
       }
       if (screen === 'Chat' && id === '17:374') children = [<input key="message" className="message-input" aria-label="메시지" maxLength={1000} disabled={chat.closed} placeholder={chat.closed ? '종료된 대화예요' : '모우에게 이야기해 보세요'} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void sendMessage(); } }} />];
-      if (screen === 'Chat' && id === '97:52' && (chat.closed || chat.working || draftGenerating || !message.trim())) extra['aria-disabled'] = true;
+      if (screen === 'Chat' && id === '97:52' && (chat.closed || chat.working || draftGenerating || (!message.trim() && !photos.length))) extra['aria-disabled'] = true;
       if (screen === 'Chat' && id === '30:3559') {
         if (chat.loading || (chat.closed && (!live || !chat.canGenerate))) return null;
         if (draftGenerating || chat.working) { extra.disabled = true; extra['aria-disabled'] = true; }
@@ -485,9 +493,7 @@ export default function App() {
         extra.title = primary?.name ?? '감정 미확정';
       }
       if (live && screen === 'DiaryDetail' && id === '155:598') {
-        const photo = liveDiary?.attachments.find(a => a.mimeType.startsWith('image/'));
-        if (!photo) return null;
-        children = Children.map(children, child => isValidElement<{ src?: string }>(child) && child.type === 'img' ? cloneElement(child, { src: photo.url }) : child);
+        return null;
       }
       if (live && screen === 'Diary' && id === '28:3049') extra.style = { ...props.style, height: Math.max(342, flowHeight - 510) };
       if (live && screen === 'Calendar' && id === '26:2993') extra.style = { ...props.style, height: Math.max(367, flowHeight - 507) };
@@ -532,6 +538,9 @@ export default function App() {
     return enhance(cloneElement(root, {}, modal));
   }
   const { Component, height } = screens[screen];
+  const visibleDiaryPhotos = (liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id));
+  const photoPage = !previewOnly && live && ((screen === 'DiaryEditor' && (photos.length > 0 || visibleDiaryPhotos.length > 0)) || (screen === 'DiaryDetail' && Boolean(liveDiary?.attachments.length)));
+  const pageHeight = height + (photoPage ? 140 : 0);
   const flowPage = !previewOnly && live && (screen === 'Diary' || screen === 'Calendar');
   const [flowHeight, setFlowHeight] = useState<number>(height);
   const [floatingBottom, setFloatingBottom] = useState(32);
@@ -546,7 +555,7 @@ export default function App() {
   }, [flowPage, screen]);
   // Single-page designs (login, modals, chat) shrink to fit a short window so their
   // bottom buttons stay visible; long scrolling pages (Home, MyPage) fit width only.
-  const scale = Math.min(1, viewport.width / 393, !flowPage && height <= 900 ? viewport.height / height : 1);
+  const scale = Math.min(1, viewport.width / 393, !flowPage && !photoPage && height <= 900 ? viewport.height / height : 1);
   useLayoutEffect(() => {
     if (!flowPage || screen !== 'Diary') return;
     const update = () => {
@@ -560,8 +569,8 @@ export default function App() {
     return () => { window.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
   }, [flowPage, screen, flowHeight, scale]);
   return <>
-    <main className="screen-viewport" style={{width:393*scale,height:(flowPage ? flowHeight : height)*scale}}>
-      <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : height,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`}}>
+    <main className="screen-viewport" style={{width:393*scale,height:(flowPage ? flowHeight : pageHeight)*scale}}>
+      <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : pageHeight,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`}}>
         {!previewOnly && characterState.authenticated && (screen === 'Characters' || screen === 'CharacterDetail')
           ? <CharacterScreen state={characterState} showDetail={screen === 'CharacterDetail'} onBack={back} onChat={() => {
             // Start with the chosen character rather than resume an unrelated active chat.
@@ -586,6 +595,13 @@ export default function App() {
           onOpenDiary={id => openDiary(id)}
         />}
         {!previewOnly && screen === 'Chat' && showProgress && <div className="progress-layer" role="dialog" aria-modal="true" aria-label="대화 진행도">{progressModal()}</div>}
+        {!previewOnly && live && screen === 'Chat' && photos.length > 0 && <div className="photo-composer"><SelectedPhotos files={photos} disabled={chat.working || draftGenerating} onRemove={index => setPhotos(current => current.filter((_, i) => i !== index))} /></div>}
+        {photoPage && <section className="diary-photo-panel" style={{ position: 'absolute', top: height, left: 0, right: 0 }} aria-label="일기 사진">
+          <SavedPhotos photos={(liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id))} disabled={busy}
+            onRefresh={async () => { if (diaryId) { const fresh = await diaryApi.get(diaryId); setLiveDiary(current => current?.id === fresh.id ? { ...current, attachments: fresh.attachments } : current); } }}
+            onRemove={screen === 'DiaryEditor' ? id => setRemovedPhotos(current => [...current, id]) : undefined} />
+          {screen === 'DiaryEditor' && <SelectedPhotos files={photos} disabled={busy} onRemove={index => setPhotos(current => current.filter((_, i) => i !== index))} />}
+        </section>}
         {!previewOnly && screen === 'Archive' && <ArchiveList onOpen={openSession} onError={setNotice} />}
         {!previewOnly && live && screen === 'DiaryEditor' && willResetEmotion && <p className="emotion-reset-editor-notice" role="status">본문을 바꾸어 저장하면 기존 감정이 초기화돼요.<br />저장 후 감정을 다시 선택해 주세요.</p>}
         {!previewOnly && live && screen === 'DiaryDetail' && liveDiary && <DiaryEmotions key={liveDiary.id} diary={liveDiary}
@@ -597,7 +613,13 @@ export default function App() {
     {flowPage && screen === 'Diary' && <button type="button" className="diary-create-floating" style={{ bottom: floatingBottom }} aria-label="오늘을 기록하러 가기" onClick={() => go('DiaryChoice')}>
       <img src="/assets/6349b.svg" alt="" />
     </button>}
-    <input ref={fileInput} type="file" accept="image/*" hidden onChange={e => { const file=e.target.files?.[0]; if(file){setAttachment(URL.createObjectURL(file));setNotice('사진을 선택했어요. 업로드 API 연결은 아직 필요해요.');} }} />
+    <input ref={fileInput} type="file" accept="image/jpeg,image/png" multiple aria-label="사진 파일 선택" hidden onChange={e => {
+      const selected = Array.from(e.target.files ?? []); e.target.value = '';
+      if (!selected.length || !live || busy || chat.working || draftGenerating || !['Chat', 'DiaryEditor'].includes(screen)) return;
+      const existing = screen === 'DiaryEditor' ? (liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id)).length : 0;
+      const error = validatePhotos([...photos, ...selected], existing);
+      if (error) setNotice(error); else setPhotos(current => [...current, ...selected]);
+    }} />
     {notice && <div className="notice" role="status">{notice}</div>}
     {authenticating && <div className="notice" role="status">로그인을 완료하고 있어요…</div>}
   </>;

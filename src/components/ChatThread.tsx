@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { defaultCharacter } from '../features/chat/characters';
 import { characterApi } from '../features/characters/api';
 import { characterCatalog } from '../features/characters/catalog';
-import { isLiveApi } from '../features/chat/api';
+import { chatApi, isLiveApi } from '../features/chat/api';
+import type { PhotoAttachment } from '../features/attachments';
 import type { ChatMessage } from '../features/chat/types';
 import PastDiarySuggestions from './PastDiarySuggestions';
+import { SavedPhotos } from './Photos';
 
 interface Props {
   messages: ChatMessage[];
@@ -31,6 +33,22 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
   const keepFromBottom = useRef<number | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string; saving: boolean } | null>(null);
   const [portraits, setPortraits] = useState<Record<string, { name: string; image: string; fallback: string }>>({});
+  const [renewedPhotos, setRenewedPhotos] = useState<Record<string, PhotoAttachment[]>>({});
+  useEffect(() => { setRenewedPhotos({}); }, [sessionId]);
+  async function refreshPhotos(messageId: string) {
+    if (!sessionId) return;
+    let cursor: string | null = null;
+    const seen = new Set<string>();
+    do {
+      const detail = await chatApi.getSession(sessionId, { limit: 100, cursor });
+      const message = detail.messages.items.find(item => item.id === messageId);
+      if (message) { setRenewedPhotos(current => ({ ...current, [messageId]: message.attachments ?? [] })); return; }
+      cursor = detail.messages.nextCursor;
+      if (cursor && seen.has(cursor)) break;
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+    throw new Error('사진을 찾지 못했어요.');
+  }
   useEffect(() => {
     if (!isLiveApi()) return;
     const controller = new AbortController();
@@ -94,6 +112,7 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
       )}
       {messages.map(message => message.senderRole === 'USER' ? (
         <div key={message.id} className="chat-row chat-row-user">
+          <SavedPhotos photos={renewedPhotos[message.id] ?? message.attachments ?? []} onRefresh={() => refreshPhotos(message.id)} />
           {editing?.id === message.id ? (
             <div className="chat-edit">
               <textarea

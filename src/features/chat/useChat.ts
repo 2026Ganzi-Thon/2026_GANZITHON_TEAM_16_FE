@@ -82,12 +82,12 @@ export function useChat(enabled: boolean, viewSessionId: string | null, onError:
   }, [session, nextCursor, onError]);
 
   /** Resolves true when the message was accepted, so the caller can clear its input. */
-  const send = useCallback(async (content: string) => {
+  const send = useCallback(async (content: string, files: File[] = []) => {
     const text = content.trim();
-    if (!text || loading || busy.current || session?.endedAt) return false;
+    if ((!text && !files.length) || loading || busy.current || session?.endedAt) return false;
     const version = epoch.current;
     busy.current = true; setWorking(true);
-    setPending(text);
+    setPending(text || '사진을 보내고 있어요…');
     try {
       let current = session;
       if (!current) {
@@ -96,7 +96,7 @@ export function useChat(enabled: boolean, viewSessionId: string | null, onError:
         writeActive(current.id);
         setSession(current);
       }
-      const result = await chatApi.sendMessage(current.id, { content: text });
+      const result = await chatApi.sendMessage(current.id, { content: text }, files);
       if (version !== epoch.current) return false;
       setMessages(list => merge(list, [result.userMessage, result.assistantMessage]));
       setSession({ ...current, completedTurns: result.completedTurns, canGenerateDiary: result.canGenerateDiary });
