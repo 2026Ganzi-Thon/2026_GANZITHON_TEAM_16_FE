@@ -17,6 +17,6 @@ export const chatApi: ChatApi = {
   getSession: (id, params) => pick().getSession(id, params),
   endSession: id => pick().endSession(id),
   deleteSession: id => pick().deleteSession(id),
-  sendMessage: (id, body) => pick().sendMessage(id, body),
+  sendMessage: (id, body, files) => pick().sendMessage(id, body, files),
   editMessage: (id, messageId, body) => pick().editMessage(id, messageId, body),
 };
