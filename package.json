@@ -17,6 +17,7 @@
     "check:diary-emotions": "node scripts/verify-diary-emotions.mjs",
     "check:chat-delete": "node scripts/verify-chat-delete.mjs",
     "check:chat-improvements": "node scripts/verify-chat-improvements.mjs",
+    "check:monthly-recap": "node scripts/verify-monthly-recap.mjs",
     "check:profile-api": "node scripts/verify-profile-api.mjs",
     "check:character-api": "node scripts/verify-character-api.mjs",
     "check:mypage-stats": "node scripts/verify-mypage-stats.mjs",
