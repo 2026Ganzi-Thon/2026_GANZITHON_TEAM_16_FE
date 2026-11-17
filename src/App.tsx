@@ -21,6 +21,7 @@ import DiaryEmotions from './components/DiaryEmotions';
 import { useEmotionReminders } from './features/diary/useEmotionReminders';
 import { validatePhotos } from './features/attachments';
 import { SavedPhotos, SelectedPhotos } from './components/Photos';
+import DiaryChoiceModal from './components/DiaryChoiceModal';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -116,7 +117,7 @@ export default function App() {
     return () => removeEventListener('mowoo:auth-change', changed);
   }, []);
   const [diaryId, setDiaryId] = useState<string | null>(diaryIdParam);
-  const week = useWeekDiaries(screen === 'Home' || screen === 'Diary', live);
+  const week = useWeekDiaries(screen === 'Home' || screen === 'Diary' || screen === 'DiaryChoice', live);
   const [liveDiary, setLiveDiary] = useState<Diary | null>(null);
   const [editor, setEditor] = useState({ title: '', content: '' });
   const emotionReminders = useEmotionReminders(live ? profile.id : undefined);
@@ -137,6 +138,17 @@ export default function App() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [removedPhotos, setRemovedPhotos] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const messageInput = useRef<HTMLTextAreaElement>(null);
+  const [messageHeight, setMessageHeight] = useState(44);
+  useLayoutEffect(() => {
+    const node = messageInput.current;
+    if (!node || screen !== 'Chat') return;
+    node.style.height = '0px';
+    const height = Math.max(44, Math.min(140, node.scrollHeight));
+    node.style.height = `${height}px`;
+    node.style.overflowY = node.scrollHeight > 140 ? 'auto' : 'hidden';
+    setMessageHeight(height);
+  }, [message, screen]);
   const stage = useRef<HTMLDivElement>(null);
   const previewOnly = location.pathname.startsWith('/design/');
   const characterState = useCharacters(!previewOnly && (screen === 'Home' || screen === 'Characters' || screen === 'CharacterDetail'), screen === 'CharacterDetail' ? characterParam() ?? 'kind' : null);
@@ -292,8 +304,7 @@ export default function App() {
   }
   async function submitProfile() {
     if (!draft.nickname.trim()) { setNotice('닉네임을 입력해 주세요.'); return; }
-    if (draft.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) { setNotice('이메일 주소를 확인해 주세요.'); return; }
-    try { await saveProfile({ nickname: draft.nickname, email: draft.email || null, birthDate: draft.birthDate || null }); back(); } catch (e) { setNotice((e as Error).message); }
+    try { await saveProfile({ nickname: draft.nickname, birthDate: draft.birthDate || null }); back(); } catch (e) { setNotice((e as Error).message); }
   }
   const actions: Record<string, [string, () => void]> = {};
   const link = (ids: string[], label: string, next: ScreenName) => ids.forEach(id => { actions[id] = [label, () => go(next)]; });
@@ -356,7 +367,9 @@ export default function App() {
   }
   if (screen === 'Deleted') actions['120:396'] = ['닫기', () => go('MyPage', true)];
 
+  let renderedScreen = screen;
   function enhance(node: ReactNode): ReactNode {
+    const screen = renderedScreen;
     if (!isValidElement(node)) return node;
     const element = node as ReactElement<NodeProps>, props = element.props, id = props['data-node-id'] ?? '', name = props['data-name'] ?? '';
     if (!previewOnly && (hiddenNodes[screen]?.has(id) || (live && liveHiddenNodes[screen]?.has(id)))) return null;
@@ -444,13 +457,17 @@ export default function App() {
       if (screen === 'EditProfile' && fields[id]) {
         const [field,label] = fields[id];
         if (field === 'birthDate') return <BirthDateField key={id} nodeId={id} className={String(props.className ?? '')} label={label} value={String(draft.birthDate ?? '')} onChange={birthDate => setDraft({ ...draft, birthDate })} />;
-        return <input key={id} data-node-id={id} className={`${props.className} profile-input`} aria-label={label} type={field === 'email' ? 'email' : 'text'} maxLength={field === 'nickname' ? 50 : 254} value={String(draft[field] ?? '')} onChange={e => setDraft({ ...draft, [field]: e.target.value })} />;
+        if (field === 'email') return <div key={id} data-node-id={id} className={`${props.className} profile-email-locked`} title="소셜 로그인 계정의 이메일은 변경할 수 없어요.">
+          <input aria-label={label} type="email" value={profile.email ?? ''} readOnly aria-readonly="true" />
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="수정 잠김"><rect x="5" y="10" width="14" height="11" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /><path d="M12 14v3" /></svg>
+        </div>;
+        return <input key={id} data-node-id={id} className={`${props.className} profile-input`} aria-label={label} type="text" maxLength={50} value={String(draft[field] ?? '')} onChange={e => setDraft({ ...draft, [field]: e.target.value })} />;
       }
       if (screen === 'MyPage' && ['97:91','97:92'].includes(id)) {
         const field = id === '97:91' ? 'usePastDiaries' : 'eveningReminderEnabled';
         return <button key={id} data-node-id={id} className={`${props.className} setting-switch ${profile[field] ? 'is-on' : ''}`} type="button" role="switch" aria-checked={profile[field]} aria-busy={savingSetting === field} disabled={savingSetting !== null} aria-label={field === 'usePastDiaries' ? '과거 일기를 대화에 사용' : '저녁 모우 알림'} onClick={() => { void toggleSetting(field); }}><span /></button>;
       }
-      if (screen === 'Chat' && id === '17:374') children = [<input key="message" className="message-input" aria-label="메시지" maxLength={1000} disabled={chat.closed} placeholder={chat.closed ? '종료된 대화예요' : '모우에게 이야기해 보세요'} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void sendMessage(); } }} />];
+      if (screen === 'Chat' && id === '17:374') children = [<textarea key="message" ref={messageInput} rows={1} className="message-input" aria-label="메시지" maxLength={1000} disabled={chat.closed} placeholder={chat.closed ? '종료된 대화예요' : '모우에게 이야기해 보세요'} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); void sendMessage(); } }} />];
       if (screen === 'Chat' && id === '97:52' && (chat.closed || chat.working || draftGenerating || (!message.trim() && !photos.length))) extra['aria-disabled'] = true;
       if (screen === 'Chat' && id === '30:3559') {
         if (chat.loading || (chat.closed && (!live || !chat.canGenerate))) return null;
@@ -537,11 +554,17 @@ export default function App() {
     const modal = Children.toArray(root.props.children).filter(child => isValidElement<NodeProps>(child) && progressModalNodes.includes(child.props['data-node-id'] ?? ''));
     return enhance(cloneElement(root, {}, modal));
   }
+  function diaryChoiceBackground() {
+    renderedScreen = 'Diary';
+    const background = enhance(screens.Diary.Component());
+    renderedScreen = screen;
+    return <div inert>{background}</div>;
+  }
   const { Component, height } = screens[screen];
   const visibleDiaryPhotos = (liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id));
   const photoPage = !previewOnly && live && ((screen === 'DiaryEditor' && (photos.length > 0 || visibleDiaryPhotos.length > 0)) || (screen === 'DiaryDetail' && Boolean(liveDiary?.attachments.length)));
   const pageHeight = height + (photoPage ? 140 : 0);
-  const flowPage = !previewOnly && live && (screen === 'Diary' || screen === 'Calendar');
+  const flowPage = !previewOnly && live && (screen === 'Diary' || screen === 'Calendar' || screen === 'DiaryChoice');
   const [flowHeight, setFlowHeight] = useState<number>(height);
   const [floatingBottom, setFloatingBottom] = useState(32);
   useLayoutEffect(() => {
@@ -570,7 +593,7 @@ export default function App() {
   }, [flowPage, screen, flowHeight, scale]);
   return <>
     <main className="screen-viewport" style={{width:393*scale,height:(flowPage ? flowHeight : pageHeight)*scale}}>
-      <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : pageHeight,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`}}>
+      <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : pageHeight,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`, '--composer-growth': `${screen === 'Chat' ? messageHeight - 44 : 0}px`} as CSSProperties}>
         {!previewOnly && characterState.authenticated && (screen === 'Characters' || screen === 'CharacterDetail')
           ? <CharacterScreen state={characterState} showDetail={screen === 'CharacterDetail'} onBack={back} onChat={() => {
             // Start with the chosen character rather than resume an unrelated active chat.
@@ -580,7 +603,8 @@ export default function App() {
           }} onOpen={id => {
             navigate(`/characters/detail?character=${encodeURIComponent(id)}`); setScreen('CharacterDetail'); setNotice('');
           }} />
-          : enhance(Component())}
+          : !previewOnly && screen === 'DiaryChoice' ? diaryChoiceBackground() : enhance(Component())}
+        {!previewOnly && screen === 'DiaryChoice' && <DiaryChoiceModal onClose={back} onChat={() => go('Chat')} onWrite={() => go('DiaryEditor')} />}
         {!previewOnly && screen === 'Chat' && <ChatThread
           messages={chat.messages} pending={chat.pending} loading={chat.loading} closed={chat.closed}
           hasOlder={chat.hasOlder} editableId={chat.editableId} onLoadOlder={chat.loadOlder} onEdit={chat.edit}

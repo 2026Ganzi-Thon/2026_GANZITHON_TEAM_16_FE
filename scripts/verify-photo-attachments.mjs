@@ -75,7 +75,14 @@ try {
   await page.getByRole('button', { name: '일기 저장', exact: true }).click(); await page.waitForURL('**/diary/saved?id=diary');
   assert.equal(diary.attachments.length, 0);
   await page.goto(base + '/chat');
-  await input().setInputFiles(upload);
+  const composer = page.getByRole('textbox', { name: '메시지', exact: true });
+  await composer.fill('첫 번째 줄'); await composer.press('Shift+Enter'); await composer.pressSequentially('second line');
+  assert.equal(await composer.inputValue(), '첫 번째 줄\nsecond line');
+  assert.equal(sends, 0, 'Shift+Enter must not send.');
+  await composer.fill('가나다라마바사'.repeat(40));
+  await page.waitForFunction(() => document.querySelector('textarea.message-input').clientHeight > 44);
+  assert(await composer.evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'Long input must wrap without horizontal scrolling.');
+  await composer.fill(''); await input().setInputFiles(upload);
   await page.getByAltText('선택한 사진 1', { exact: true }).waitFor();
   await page.getByRole('button', { name: '메시지 보내기', exact: true }).click();
   await page.getByAltText('첨부 사진 1', { exact: true }).waitFor(); assert.equal(sends, 1);
