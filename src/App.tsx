@@ -3,6 +3,7 @@ import { screens, type ScreenName } from './design/screens';
 import type { Profile } from './types/profile';
 import { useProfile } from './hooks/useProfile';
 import { useAuth } from './features/auth/useAuth';
+import { hasSocialConfiguration } from './features/auth/oauth';
 import { initializeNavigation, navigate, rememberPosition, restorePosition, returnToPrevious } from './navigation';
 import { useChat } from './features/chat/useChat';
 import { REQUIRED_TURNS } from './features/chat/types';
@@ -138,7 +139,7 @@ export default function App() {
   const characterState = useCharacters(!previewOnly && (screen === 'Home' || screen === 'Characters' || screen === 'CharacterDetail'), screen === 'CharacterDetail' ? characterParam() ?? 'kind' : null);
   const homeCharacter = characterState.items.find(item => item.id === characterState.selectedId && item.isOwned)
     ?? characterState.items.find(item => item.isOwned);
-  const { startLogin, logout } = useAuth({
+  const { startLogin, logout, authenticating } = useAuth({
     onSessionExpired: () => { navigate('/', true); setScreen('Login'); setNotice('로그인이 만료됐어요. 다시 로그인해 주세요.'); },
     onAuthenticated: () => { navigate('/home', true); setScreen('Home'); },
     onError: setNotice,
@@ -292,13 +293,12 @@ export default function App() {
   const actions: Record<string, [string, () => void]> = {};
   const link = (ids: string[], label: string, next: ScreenName) => ids.forEach(id => { actions[id] = [label, () => go(next)]; });
   if (screen === 'Login') {
-    // Without a Kakao key (.env.local) every login button opens the local preview,
-    // so all screens can be checked before the auth backend is set up.
-    const kakaoConfigured = Boolean(import.meta.env.VITE_KAKAO_CLIENT_ID);
+    // Preserve preview entry only when no real login provider is configured.
+    const configured = hasSocialConfiguration();
     const enterPreview = () => { go('Home', true); setNotice('로그인 없이 미리보기로 들어왔어요. 데이터는 이 브라우저에만 저장돼요.'); };
-    actions['91:79'] = ['카카오 로그인', kakaoConfigured ? startLogin : enterPreview];
-    actions['227:217'] = ['구글 로그인', kakaoConfigured ? () => setNotice('구글 로그인은 아직 연결되지 않았어요.') : enterPreview];
-    actions['91:69'] = ['네이버 로그인', kakaoConfigured ? () => setNotice('네이버 로그인은 아직 연결되지 않았어요.') : enterPreview];
+    actions['91:79'] = ['카카오 로그인', configured ? () => startLogin('kakao') : enterPreview];
+    actions['227:217'] = ['구글 로그인', configured ? () => startLogin('google') : enterPreview];
+    actions['91:69'] = ['네이버 로그인', configured ? () => startLogin('naver') : enterPreview];
   }
   if (screen === 'Home') {
     link(['94:104'], '마이페이지', 'MyPage'); link(['10:530','10:518','10:480'], '대화 시작하기', 'Chat');
@@ -358,6 +358,7 @@ export default function App() {
     let children = Children.map(props.children, enhance);
     const extra: NodeProps = {};
     let action = actions[id];
+    if (screen === 'Login' && ['91:79', '227:217', '91:69'].includes(id)) { extra.disabled = authenticating; extra['aria-busy'] = authenticating; extra['aria-disabled'] = authenticating; }
     if (name === 'tabler:chevron-left') action = ['뒤로 가기', back];
     if (!previewOnly && screen !== 'Login' && name === 'logo') children = [...Children.toArray(children),
       <button key="home-logo" type="button" className="chat-home-logo" aria-label="홈으로 이동" onClick={() => go('Home')} />];
@@ -366,7 +367,7 @@ export default function App() {
     if (name === 'tabler:photo' && screen === 'DiaryEditor') action = ['사진 첨부', () => fileInput.current?.click()];
     if (name === 'tabler:photo' && screen === 'Chat') action = ['사진 첨부', () => setNotice('대화에서는 아직 사진을 보낼 수 없어요.')];
     if (name === 'tabler:microphone') action = ['음성 입력', () => setNotice('음성 입력은 아직 연결되지 않았어요.')];
-    if (action) { const [label, run] = action; Object.assign(extra, { role: 'button', tabIndex: 0, 'aria-label': label, className: `${props.className ?? ''} design-action`, onClick: (e: React.MouseEvent) => { e.stopPropagation(); run(); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); run(); } } }); }
+    if (action) { const [label, run] = action; Object.assign(extra, { role: 'button', tabIndex: extra.disabled ? -1 : 0, 'aria-label': label, className: `${props.className ?? ''} design-action`, onClick: (e: React.MouseEvent) => { e.stopPropagation(); run(); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); run(); } } }); }
     if (!previewOnly) {
       if (live && screen === 'MyPage') {
         const values: Record<string, number | undefined> = {
@@ -598,5 +599,6 @@ export default function App() {
     </button>}
     <input ref={fileInput} type="file" accept="image/*" hidden onChange={e => { const file=e.target.files?.[0]; if(file){setAttachment(URL.createObjectURL(file));setNotice('사진을 선택했어요. 업로드 API 연결은 아직 필요해요.');} }} />
     {notice && <div className="notice" role="status">{notice}</div>}
+    {authenticating && <div className="notice" role="status">로그인을 완료하고 있어요…</div>}
   </>;
 }

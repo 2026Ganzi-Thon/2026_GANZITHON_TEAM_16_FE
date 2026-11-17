@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import assert from 'node:assert/strict';
 const base='http://127.0.0.1:3100';
-const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','3100','--strictPort'],{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,VITE_KAKAO_CLIENT_ID:'test-rest-key',VITE_KAKAO_REDIRECT_URI:'http://localhost:3000/login/oauth2/code/kakao'}});
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','3100','--strictPort'],{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,VITE_KAKAO_CLIENT_ID:'test-rest-key',VITE_KAKAO_REDIRECT_URI:base+'/login/oauth2/code/kakao'}});
 let browser;
 try {
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Server startup timeout')),15000);server.once('exit',code=>{clearTimeout(timer);reject(new Error('Server exited '+code));});server.stdout.on('data',data=>{if(data.toString().includes('3100')){clearTimeout(timer);resolve();}});});
@@ -15,7 +15,8 @@ try {
  await page.route('**/api/v1/auth/kakao',route=>{loginCalls++;assert.equal(route.request().method(),'POST');const {code}=route.request().postDataJSON();return code==='bad-code'?route.fulfill({status:400,json:{error:{message:'잘못된 인가 코드'}}}):route.fulfill({json:{accessToken:'test-access-token',id:'user-1',username:'사용자'},headers:{'Set-Cookie':'refresh_token=test-refresh; Path=/api/v1/auth; HttpOnly; SameSite=Lax'}});});
  await page.route('**/api/v1/auth/reissue',route=>{reissueCalls++;assert(route.request().headers().cookie?.includes('refresh_token=test-refresh'));return route.fulfill({json:{accessToken:'renewed-token'}});});
  await page.route('**/api/v1/auth/logout',route=>{logoutCalls++;assert.equal(route.request().headers().authorization,'Bearer test-access-token');return logoutFailure?route.fulfill({status:500,json:{message:'로그아웃 실패 테스트'}}):route.fulfill({json:{isSuccess:true}});});
- await page.goto(base+'/login/oauth2/code/kakao?code=new-code');await page.waitForURL(base+'/home');
+ const callback=async(code)=>{await page.goto(base+'/');const url=await page.evaluate(async()=>{const {authorizationUrl}=await import('/src/features/auth/oauth.ts');return authorizationUrl('kakao');});await page.goto(base+'/login/oauth2/code/kakao?'+new URLSearchParams({code,state:new URL(url).searchParams.get('state')}));};
+ await callback('new-code');await page.waitForURL(base+'/home');
  assert.equal(loginCalls,1,'StrictMode must not exchange the same code twice.');
  assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),'test-access-token');
  assert(!(await page.evaluate(()=>document.cookie)).includes('refresh_token'));
@@ -26,7 +27,7 @@ try {
  assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),'test-access-token');
  logoutFailure=false;await page.getByRole('button',{name:'로그아웃',exact:true}).click();await page.waitForURL(base+'/');
  assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),null);assert.equal(logoutCalls,2);
- await page.goto(base+'/login/oauth2/code/kakao?code=bad-code');await page.getByRole('status').filter({hasText:'잘못된 인가 코드'}).waitFor();
+ await callback('bad-code');await page.getByRole('status').filter({hasText:'잘못된 인가 코드'}).waitFor();
  assert.equal(await page.evaluate(()=>sessionStorage.getItem('mowoo.accessToken')),null);
  await page.route('https://kauth.kakao.com/**',route=>route.fulfill({body:'Mock authorization screen'}));
  await page.goto(base+'/');await page.getByRole('button',{name:'카카오 로그인',exact:true}).click();await page.waitForURL('https://kauth.kakao.com/**');

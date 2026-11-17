@@ -90,6 +90,8 @@ npm run check:interactions
 
 ## 인증·프로필 API 실행 명령
 
+소셜 로그인은 `npm run check:social-login`으로 추가 검사합니다. 구글·네이버·카카오 인가 URL, state·제공자·만료 검증, 코드 중복 교환 방지, 오류·취소·계정 변경·미설정 제공자·저장소 차단·미리보기 분리를 모의 응답으로 확인합니다. 포트 3100을 공유하므로 아래 검사와 순서대로 실행하세요. 실제 제공자 계정 로그인은 별도 검증입니다.
+
 ```sh
 npm run check:auth
 npm run check:profile-api
