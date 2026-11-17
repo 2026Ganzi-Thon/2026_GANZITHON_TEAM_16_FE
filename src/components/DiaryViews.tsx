@@ -1,7 +1,7 @@
 // Live (logged-in) diary layers drawn over the Figma screens: the diary list,
 // the mind calendar and the delete-selection list. Each loads its own data.
 import { useEffect, useState } from 'react';
-import { diaryApi, diaryDateLabel, todaySeoul, type CalendarDay, type Diary } from '../features/diary/api';
+import { diaryApi, diaryDateLabel, listAllDiaries, todaySeoul, type CalendarDay, type Diary } from '../features/diary/api';
 import MonthlyRecap from './MonthlyRecap';
 
 const primaryColor = (diary: Diary) => diary.emotionConfirmedAt ? diary.emotions.find(e => e.isPrimary)?.colorHex ?? '#c7d4cf' : '#c7d4cf';
@@ -47,14 +47,14 @@ const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'Jul
 const weekdayLabels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const pad = (n: number) => String(n).padStart(2, '0');
 
-type MonthLoader = (from: string, to: string, month: string) => Promise<{ diaries: Diary[]; days: CalendarDay[] }>;
+type MonthLoader = (from: string, to: string, month: string, signal?: AbortSignal) => Promise<{ diaries: Diary[]; days: CalendarDay[] }>;
 // Server data: the diary list gives every saved day; the calendar API adds the confirmed mood color.
-const loadFromServer: MonthLoader = async (from, to, month) => {
-  const [page, calendar] = await Promise.all([
-    diaryApi.list({ from, to, limit: 100 }),
-    diaryApi.calendar(month).catch(() => ({ month, days: [] as CalendarDay[] })),
+const loadFromServer: MonthLoader = async (from, to, month, signal) => {
+  const [diaries, calendar] = await Promise.all([
+    listAllDiaries({ from, to }, signal),
+    diaryApi.calendar(month, signal).catch(reason => { if (signal?.aborted) throw reason; return { month, days: [] as CalendarDay[] }; }),
   ]);
-  return { diaries: page.items, days: calendar.days };
+  return { diaries, days: calendar.days };
 };
 
 /** Logged-out preview: sample diaries on the 1st, 5th and 6th of every month (as drawn in the design). */
@@ -152,6 +152,7 @@ export function LiveCalendar({ onOpen, onNotice, load = loadFromServer, preview 
   const [loaded, setDiaries] = useState<Diary[]>([]);
   const [days, setDays] = useState<CalendarDay[]>([]);
   const [loadState, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [revision, setRevision] = useState(0);
   const [error, setError] = useState('');
   const monthKey = `${view.year}-${pad(view.month)}`;
   const last = new Date(view.year, view.month, 0).getDate();
@@ -161,14 +162,14 @@ export function LiveCalendar({ onOpen, onNotice, load = loadFromServer, preview 
 
   useEffect(() => {
     if (preview) return;
-    let active = true;
-    setState('loading');
-    load(`${monthKey}-01`, `${monthKey}-${pad(last)}`, monthKey).then(result => {
-      if (!active) return;
+    const abort = new AbortController();
+    setState('loading'); setDiaries([]); setDays([]); setError('');
+    load(`${monthKey}-01`, `${monthKey}-${pad(last)}`, monthKey, abort.signal).then(result => {
+      if (abort.signal.aborted) return;
       setDiaries(result.diaries); setDays(result.days); setState('ready');
-    }).catch(reason => { if (active) { setError(errorText(reason)); setState('error'); } });
-    return () => { active = false; };
-  }, [monthKey, last, load, preview]);
+    }).catch(reason => { if (!abort.signal.aborted) { setError(errorText(reason)); setState('error'); } });
+    return () => abort.abort();
+  }, [monthKey, last, load, preview, revision]);
 
   const byDate = new Map<string, Diary[]>();
   diaries.forEach(d => byDate.set(d.entryDate, [...(byDate.get(d.entryDate) ?? []), d]));
@@ -206,7 +207,7 @@ export function LiveCalendar({ onOpen, onNotice, load = loadFromServer, preview 
       <h2 className="live-calendar-title">{view.month}월 기록</h2>
       {!preview && <MonthlyRecap month={monthKey} onOpenDiary={onOpen} onMonth={month => { const [year, value] = month.split('-').map(Number); setView({ year, month: value }); }} />}
       {state === 'loading' && <p className="diary-empty" role="status">불러오는 중…</p>}
-      {state === 'error' && <p className="diary-empty" role="alert">{error}</p>}
+      {state === 'error' && <p className="diary-empty" role="alert">{error} <button type="button" className="diary-link" onClick={() => setRevision(value => value + 1)}>다시 시도</button></p>}
       {state === 'ready' && diaries.length === 0 && <p className="diary-empty">이 달에는 저장한 일기가 없어요.</p>}
       {[...diaries].reverse().map(diary => <DiaryCard key={diary.id} diary={diary} onOpen={id => onOpen(id, diary.entryDate)} />)}
     </div>
@@ -217,9 +218,15 @@ export function LiveCalendar({ onOpen, onNotice, load = loadFromServer, preview 
 export function LiveDeleteList({ selected, onToggle }: { selected: Set<string>; onToggle: (id: string) => void }) {
   const [items, setItems] = useState<Diary[] | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => { diaryApi.list({ limit: 100 }).then(page => setItems(page.items)).catch(reason => setError(errorText(reason))); }, []);
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const abort = new AbortController(); setItems(null); setError('');
+    listAllDiaries({}, abort.signal).then(result => { if (!abort.signal.aborted) setItems(result); })
+      .catch(reason => { if (!abort.signal.aborted) setError(errorText(reason)); });
+    return () => abort.abort();
+  }, [revision]);
   return <div className="delete-live-list" role="group" aria-label="삭제할 기록">
-    {error && <p className="diary-empty" role="alert">{error}</p>}
+    {error && <p className="diary-empty" role="alert">{error} <button type="button" className="diary-link" onClick={() => setRevision(value => value + 1)}>다시 시도</button></p>}
     {items === null && !error && <p className="diary-empty" role="status">불러오는 중…</p>}
     {items?.length === 0 && <p className="diary-empty">삭제할 일기가 없어요.</p>}
     {items?.map(diary => {

@@ -631,7 +631,10 @@ export default function App() {
         {!previewOnly && live && screen === 'DiaryDetail' && liveDiary && <DiaryEmotions key={liveDiary.id} diary={liveDiary}
           needsReconfirmation={!liveDiary.emotionConfirmedAt && emotionReminders.pending(liveDiary.id)}
           onConfirmed={diary => { setLiveDiary(diary); emotionReminders.mark(diary.id, false); }} />}
-        {!previewOnly && live && screen === 'DeleteSelected' && <LiveDeleteList selected={selectedDiaries} onToggle={id => setSelectedDiaries(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; })} />}
+        {!previewOnly && live && screen === 'DeleteSelected' && <LiveDeleteList selected={selectedDiaries} onToggle={id => {
+          if (!selectedDiaries.has(id) && selectedDiaries.size >= 100) { setNotice('한 번에 삭제할 일기는 최대 100개까지 선택해 주세요.'); return; }
+          setSelectedDiaries(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+        }} />}
       </div>
     </main>
     {flowPage && screen === 'Diary' && <button type="button" className="diary-create-floating" style={{ bottom: floatingBottom }} aria-label="오늘을 기록하러 가기" onClick={() => go('DiaryChoice')}>
