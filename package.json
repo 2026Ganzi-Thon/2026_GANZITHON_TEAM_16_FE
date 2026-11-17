@@ -13,6 +13,7 @@
     "check:navigation": "node scripts/verify-reading-navigation.mjs",
     "check:controls": "node scripts/verify-toggle-controls.mjs",
     "check:auth": "node scripts/verify-auth.mjs",
+    "check:social-login": "node scripts/verify-social-login.mjs",
     "check:auth-refresh": "node scripts/verify-auth-refresh.mjs",
     "check:diary-emotions": "node scripts/verify-diary-emotions.mjs",
     "check:chat-delete": "node scripts/verify-chat-delete.mjs",
