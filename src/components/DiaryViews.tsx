@@ -2,6 +2,7 @@
 // the mind calendar and the delete-selection list. Each loads its own data.
 import { useEffect, useState } from 'react';
 import { diaryApi, diaryDateLabel, todaySeoul, type CalendarDay, type Diary } from '../features/diary/api';
+import MonthlyRecap from './MonthlyRecap';
 
 const primaryColor = (diary: Diary) => diary.emotionConfirmedAt ? diary.emotions.find(e => e.isPrimary)?.colorHex ?? '#c7d4cf' : '#c7d4cf';
 const errorText = (error: unknown) => (error instanceof Error && error.message) || '기록을 불러오지 못했어요.';
@@ -203,6 +204,7 @@ export function LiveCalendar({ onOpen, onNotice, load = loadFromServer, preview 
     </section>
     <div className={`diary-live-list live-calendar-list${preview ? ' is-preview' : ''}`}>
       <h2 className="live-calendar-title">{view.month}월 기록</h2>
+      {!preview && <MonthlyRecap month={monthKey} onOpenDiary={onOpen} onMonth={month => { const [year, value] = month.split('-').map(Number); setView({ year, month: value }); }} />}
       {state === 'loading' && <p className="diary-empty" role="status">불러오는 중…</p>}
       {state === 'error' && <p className="diary-empty" role="alert">{error}</p>}
       {state === 'ready' && diaries.length === 0 && <p className="diary-empty">이 달에는 저장한 일기가 없어요.</p>}

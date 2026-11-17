@@ -12,5 +12,6 @@ import './chat.css';
 import './characters.css';
 import './diary.css';
 import './emotions.css';
+import './recap.css';
 import './date-picker.css';
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

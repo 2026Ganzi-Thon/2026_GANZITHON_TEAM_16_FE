@@ -85,14 +85,33 @@ function EmotionPicker({ diary, onClose, onConfirmed }: { diary: Diary; onClose:
   </dialog>;
 }
 
-export default function DiaryEmotions({ diary, onConfirmed }: { diary: Diary; onConfirmed: (diary: Diary) => void }) {
+function ReconfirmationNotice({ onLater, onSelect }: { onLater: () => void; onSelect: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const node = dialog.current!; node.showModal();
+    return () => node.close();
+  }, []);
+  return <dialog ref={dialog} className="emotion-reconfirmation-dialog" aria-labelledby="emotion-reset-heading" aria-describedby="emotion-reset-description"
+    onCancel={event => { event.preventDefault(); onLater(); }}>
+    <div className="recap-rings" aria-hidden="true"><i /><i /><i /><i /></div>
+    <span className="emotion-reset-symbol" aria-hidden="true">↻</span>
+    <h2 id="emotion-reset-heading">바뀐 이야기의 마음은 어떤가요?</h2>
+    <p id="emotion-reset-description">일기 본문이 바뀌어 기존 감정이 초기화됐어요.<br />지금의 마음에 맞는 감정을 다시 선택해 주세요.</p>
+    <div className="emotion-reset-actions"><button type="button" onClick={onLater}>나중에</button><button type="button" onClick={onSelect}>감정 다시 선택하기</button></div>
+  </dialog>;
+}
+
+export default function DiaryEmotions({ diary, onConfirmed, needsReconfirmation = false }: { diary: Diary; onConfirmed: (diary: Diary) => void; needsReconfirmation?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [showReminder, setShowReminder] = useState(needsReconfirmation);
+  useEffect(() => { if (needsReconfirmation) setShowReminder(true); }, [needsReconfirmation]);
   const primary = diary.emotions.find(emotion => emotion.isPrimary);
   if (!diary.savedAt) return null;
   return <>
     <button type="button" className="diary-emotion-button" onClick={() => setOpen(true)}>
-      <span className="emotion-dot" style={{ background: color(primary?.colorHex) }} />{diary.emotionConfirmedAt ? `${primary?.name ?? '감정'} · 변경` : '감정 기록하기'}
+      <span className="emotion-dot" style={{ background: color(primary?.colorHex) }} />{diary.emotionConfirmedAt ? `${primary?.name ?? '감정'} · 변경` : needsReconfirmation ? '감정 다시 선택하기' : '감정 기록하기'}
     </button>
     {open && <EmotionPicker diary={diary} onClose={() => setOpen(false)} onConfirmed={onConfirmed} />}
+    {needsReconfirmation && showReminder && !open && <ReconfirmationNotice onLater={() => setShowReminder(false)} onSelect={() => { setShowReminder(false); setOpen(true); }} />}
   </>;
 }

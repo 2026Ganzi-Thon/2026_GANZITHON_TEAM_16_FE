@@ -17,6 +17,7 @@ import { diaryApi, todaySeoul, type Diary } from './features/diary/api';
 import { tokens } from './lib/http';
 import { membership, useMyPageStats } from './features/profile/useMyPageStats';
 import DiaryEmotions from './components/DiaryEmotions';
+import { useEmotionReminders } from './features/diary/useEmotionReminders';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -115,6 +116,8 @@ export default function App() {
   const week = useWeekDiaries(screen === 'Home' || screen === 'Diary', live);
   const [liveDiary, setLiveDiary] = useState<Diary | null>(null);
   const [editor, setEditor] = useState({ title: '', content: '' });
+  const emotionReminders = useEmotionReminders(live ? profile.id : undefined);
+  const willResetEmotion = live && Boolean(liveDiary?.emotionConfirmedAt) && editor.content.trim() !== liveDiary?.content;
   const [busy, setBusy] = useState(false);
   const [selectedDiaries, setSelectedDiaries] = useState<Set<string>>(new Set());
   const [diaryFilter, setDiaryFilter] = useState<DiaryFilter>(() => ({ mode: 'month', month: todaySeoul().slice(0, 7) }));
@@ -171,6 +174,8 @@ export default function App() {
       const saved = diaryId
         ? await diaryApi.update(diaryId, { title, content, save: true })
         : await diaryApi.create({ entryDate: todaySeoul(), title, content });
+      if (liveDiary?.emotionConfirmedAt && content !== liveDiary.content && !saved.emotionConfirmedAt) emotionReminders.mark(saved.id, true);
+      else if (saved.emotionConfirmedAt) emotionReminders.mark(saved.id, false);
       setLiveDiary(saved);
       navigate(`/diary/saved?id=${encodeURIComponent(saved.id)}`, true); setDiaryId(saved.id); setScreen('DiarySaved');
     } catch (error) { setNotice((error as Error).message); }
@@ -449,6 +454,7 @@ export default function App() {
       if (screen === 'Chat' && id === '130:593') children = [`대화 진행도(${Math.min(chat.turns, REQUIRED_TURNS)}/${REQUIRED_TURNS})`];
       if (screen === 'DiaryEditor' && id === '33:3939') {
         if (live) {
+          if (willResetEmotion) extra.style = { ...props.style, height: 410 };
           Object.assign(extra, { contentEditable: true, suppressContentEditableWarning: true, role:'textbox', 'aria-label':'일기 내용', 'aria-multiline':true, 'data-placeholder':'오늘 있었던 일과 마음을 적어 주세요.', key: `content-${liveDiary?.id ?? 'new'}`, onInput: (e: React.FormEvent<HTMLElement>) => { const content = e.currentTarget.innerText; setEditor(v => ({ ...v, content })); } });
           children = [liveDiary?.content ?? (diaryId ? '' : '')];
         } else {
@@ -580,7 +586,10 @@ export default function App() {
         />}
         {!previewOnly && screen === 'Chat' && showProgress && <div className="progress-layer" role="dialog" aria-modal="true" aria-label="대화 진행도">{progressModal()}</div>}
         {!previewOnly && screen === 'Archive' && <ArchiveList onOpen={openSession} onError={setNotice} />}
-        {!previewOnly && live && screen === 'DiaryDetail' && liveDiary && <DiaryEmotions key={liveDiary.id} diary={liveDiary} onConfirmed={setLiveDiary} />}
+        {!previewOnly && live && screen === 'DiaryEditor' && willResetEmotion && <p className="emotion-reset-editor-notice" role="status">본문을 바꾸어 저장하면 기존 감정이 초기화돼요.<br />저장 후 감정을 다시 선택해 주세요.</p>}
+        {!previewOnly && live && screen === 'DiaryDetail' && liveDiary && <DiaryEmotions key={liveDiary.id} diary={liveDiary}
+          needsReconfirmation={!liveDiary.emotionConfirmedAt && emotionReminders.pending(liveDiary.id)}
+          onConfirmed={diary => { setLiveDiary(diary); emotionReminders.mark(diary.id, false); }} />}
         {!previewOnly && live && screen === 'DeleteSelected' && <LiveDeleteList selected={selectedDiaries} onToggle={id => setSelectedDiaries(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; })} />}
       </div>
     </main>

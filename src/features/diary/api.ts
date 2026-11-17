@@ -17,6 +17,7 @@ export interface Diary {
   attachments: DiaryAttachment[];
 }
 export interface CalendarDay { date: string; primaryEmotion: { id: string; code: string; name: string; colorHex: string | null } | null; diaryIds: string[] }
+export interface MonthlyRecap { month: string; emotionCounts: { emotionTypeId: string; count: number }[]; concernSummary: string | null }
 
 const query = (params: Record<string, string | number | null | undefined>) => {
   const search = new URLSearchParams();
@@ -33,8 +34,8 @@ export const diaryApi = {
   create: (body: { entryDate: string; title: string; content: string }) =>
     request<Diary>('/api/v1/diaries', { method: 'POST', body: JSON.stringify(body) }),
   get: (diaryId: string) => request<Diary>(`/api/v1/diaries/${id(diaryId)}`),
-  list: (params: { from?: string; to?: string; limit?: number; cursor?: string | null } = {}) =>
-    request<{ items: Diary[]; nextCursor: string | null }>(`/api/v1/diaries${query(params)}`),
+  list: (params: { from?: string; to?: string; limit?: number; cursor?: string | null } = {}, signal?: AbortSignal) =>
+    request<{ items: Diary[]; nextCursor: string | null }>(`/api/v1/diaries${query(params)}`, { signal }),
   /** Fields left out stay unchanged; save:true confirms an AI draft. */
   update: (diaryId: string, body: { title?: string; content?: string; entryDate?: string; save?: boolean }) =>
     request<Diary>(`/api/v1/diaries/${id(diaryId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
@@ -42,6 +43,7 @@ export const diaryApi = {
   draftFromChat: (sessionId: string, entryDate: string, signal?: AbortSignal) =>
     request<Diary>(`/api/v1/chat-sessions/${id(sessionId)}/diary-draft${query({ entryDate })}`, { method: 'PUT', signal }),
   calendar: (month: string) => request<{ month: string; days: CalendarDay[] }>(`/api/v1/calendar${query({ month })}`),
+  recap: (month: string, signal?: AbortSignal) => request<MonthlyRecap>(`/api/v1/calendar/recap${query({ month })}`, { signal }),
   deleteDiaries: (diaryIds: string[]) =>
     request('/api/v1/diaries/bulk-delete', { method: 'POST', body: JSON.stringify({ diaryIds }) }),
   deleteAllRecords: () => request('/api/v1/me/records', { method: 'DELETE' }),
