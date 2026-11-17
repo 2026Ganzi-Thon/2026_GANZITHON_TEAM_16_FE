@@ -21,6 +21,8 @@ async function call<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const httpChatApi: ChatApi = {
+  suggestDiaries: (sessionId, messageId, signal) => call(`${base}/${encodeURIComponent(sessionId)}/diary-suggestions${query({ messageId })}`, { signal }),
+  referenceDiary: (sessionId, body) => call(`${base}/${encodeURIComponent(sessionId)}/diary-references`, { method: 'POST', body: JSON.stringify(body) }),
   createSession: body => call(base, { method: 'POST', body: JSON.stringify(body) }),
   listSessions: async ({ limit, cursor } = {}) => {
     const page = await call<{ items: Omit<SessionListItem, 'preview'>[]; nextCursor: string | null }>(`${base}${query({ limit, cursor })}`);

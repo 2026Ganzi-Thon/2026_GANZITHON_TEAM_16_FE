@@ -104,6 +104,8 @@ function page<T>(items: T[], limit = 20, cursor?: string | null) {
 }
 
 export const mockChatApi: ChatApi = {
+  suggestDiaries: async () => ({ items: [] }),
+  referenceDiary: async () => { throw new ChatApiError('PAST_DIARY_DISABLED', 403, '과거 일기 비교는 로그인 후 사용할 수 있어요.'); },
   async createSession({ characterId }) {
     await delay(150);
     const store = load();

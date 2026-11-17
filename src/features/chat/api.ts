@@ -10,6 +10,8 @@ export const isLiveApi = () => Boolean(tokens.get());
 const pick = () => (isLiveApi() ? httpChatApi : mockChatApi);
 
 export const chatApi: ChatApi = {
+  suggestDiaries: (id, messageId, signal) => pick().suggestDiaries(id, messageId, signal),
+  referenceDiary: (id, body) => pick().referenceDiary(id, body),
   createSession: body => pick().createSession(body),
   listSessions: params => pick().listSessions(params),
   getSession: (id, params) => pick().getSession(id, params),
