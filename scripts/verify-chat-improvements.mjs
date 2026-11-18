@@ -206,6 +206,28 @@ try {
   assert.equal(typeof releaseComparison, 'function'); releaseComparison();
   await page.waitForResponse(response => response.url().endsWith('/diary-references'));
   assert(page.url().endsWith('/archive')); assert.equal(await modal.count(), 0);
+  // Reading pages use content height, with no independently scrolling body/list.
+  for (const width of [360, 412]) {
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto(base + '/diary/detail?id=past-diary');
+    await page.locator('.reading-body').filter({ hasText: diary.content }).waitFor();
+    assert.equal(await page.locator('.reading-body').evaluate(node => node.scrollHeight > node.clientHeight + 1), false);
+    assert(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1), 'Short diary must not force page scroll');
+    const header = await page.locator('.reading-header').boundingBox();
+    assert.equal(header.y, 0); assert(header.height <= 64);
+    if (width === 412) await page.screenshot({ path: '../mobile-spacing-detail.png', fullPage: true });
+    await page.goto(base + '/archive'); await page.locator('.archive-card').first().waitFor();
+    assert.equal(await page.locator('.archive-list').evaluate(node => getComputedStyle(node).overflowY), 'visible');
+    assert(await page.locator('.archive-list').evaluate(node => node.scrollHeight <= node.clientHeight + 1));
+    if (width === 412) await page.screenshot({ path: '../mobile-spacing-archive.png', fullPage: true });
+  }
+  const originalContent = diary.content;
+  diary.content = '내용이 긴 일기도 자연스럽게 이어집니다.\n'.repeat(120);
+  await page.goto(base + '/diary/detail?id=past-diary');
+  await page.waitForFunction(() => document.querySelector('.reading-body')?.textContent.length > 1000);
+  assert(await page.evaluate(() => document.documentElement.scrollHeight > innerHeight));
+  assert.equal(await page.locator('.reading-body').evaluate(node => node.scrollHeight > node.clientHeight + 1), false);
+  diary.content = originalContent;
   // Logged-out preview does not expose real recommendation controls.
   await page.evaluate(() => { sessionStorage.setItem('preview-test', 'true'); sessionStorage.setItem('mowoo.previewMode', '1'); sessionStorage.removeItem('mowoo.accessToken'); });
   await page.goto(base + '/chat');

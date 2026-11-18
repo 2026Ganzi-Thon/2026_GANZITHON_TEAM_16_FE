@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import assert from 'node:assert/strict';
 const base='http://127.0.0.1:3100';
-const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','3100','--strictPort'],{windowsHide:true,stdio:['ignore','pipe','pipe']});
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','3100','--strictPort'],{windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,VITE_KAKAO_CLIENT_ID:'profile-test',VITE_KAKAO_REDIRECT_URI:base+'/login/oauth2/code/kakao'}});
 let browser;
 try{
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Server startup timeout')),15000);server.once('exit',code=>{clearTimeout(timer);reject(new Error('Server exit '+code));});server.stdout.on('data',data=>{if(data.toString().includes('3100')){clearTimeout(timer);resolve();}});});
@@ -22,7 +22,9 @@ try{
   }else getCalls++;
   return route.fulfill({json:remote});
  });
- await page.goto(base+'/login/oauth2/code/kakao?code=profile-code');await page.waitForURL(base+'/home');
+ await page.goto(base+'/');
+ const state=await page.evaluate(async()=>{const {authorizationUrl}=await import('/src/features/auth/oauth.ts');return new URL(authorizationUrl('kakao')).searchParams.get('state');});
+ await page.goto(base+'/login/oauth2/code/kakao?code=profile-code&state='+encodeURIComponent(state));await page.waitForURL(base+'/home');
  await page.getByRole('button',{name:'마이페이지',exact:true}).click();await page.getByRole('button',{name:'내 정보',exact:true}).first().click();
  await page.waitForFunction(()=>document.querySelector('[data-node-id="130:769"]')?.textContent==='서버닉네임');
  await page.getByRole('button',{name:'내 정보 수정',exact:true}).click();

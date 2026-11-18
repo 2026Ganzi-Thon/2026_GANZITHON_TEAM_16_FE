@@ -23,6 +23,7 @@ import { validatePhotos } from './features/attachments';
 import { SavedPhotos, SelectedPhotos } from './components/Photos';
 import DiaryChoiceModal from './components/DiaryChoiceModal';
 import ChatLayout from './components/ChatLayout';
+import './mobile-pages.css';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -582,7 +583,9 @@ export default function App() {
   const visibleDiaryPhotos = (liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id));
   const photoPage = !previewOnly && live && ((screen === 'DiaryEditor' && (photos.length > 0 || visibleDiaryPhotos.length > 0)) || (screen === 'DiaryDetail' && Boolean(liveDiary?.attachments.length)));
   const pageHeight = height + (photoPage ? 140 : 0);
-  const flowPage = !previewOnly && live && (screen === 'Diary' || screen === 'Calendar' || screen === 'DiaryChoice');
+  const flowPage = !previewOnly && live && (screen === 'Diary' || screen === 'Calendar' || screen === 'DiaryChoice' || screen === 'Archive');
+  const compactPage = !previewOnly && !['Home', 'Login', 'Chat', 'ChatReady', 'ChatProgress', 'Characters', 'CharacterDetail'].includes(screen);
+  const topCrop = compactPage ? 50 : 0;
   const [flowHeight, setFlowHeight] = useState<number>(height);
   const [floatingBottom, setFloatingBottom] = useState(32);
   useLayoutEffect(() => {
@@ -597,6 +600,27 @@ export default function App() {
   // Mobile designs fit width without shrinking when the keyboard reduces height.
   // Live chat uses an independent responsive layout below.
   const scale = Math.min(viewport.width <= 520 ? viewport.width / 393 : 1, !flowPage && !photoPage && viewport.width > 520 && height <= 900 ? viewport.height / height : 1);
+  const [contentSize, setContentSize] = useState({ screen, height: pageHeight });
+  const fittedHeight = compactPage && !flowPage && !photoPage && contentSize.screen === screen ? contentSize.height : pageHeight;
+  useLayoutEffect(() => {
+    const node = stage.current;
+    if (!node || !compactPage || flowPage || photoPage || screen === 'DiaryDetail') return;
+    const measure = () => {
+      const origin = node.getBoundingClientRect().top;
+      let bottom = 121;
+      node.querySelectorAll<HTMLElement>('p,button,input,textarea,[contenteditable],img').forEach(item => {
+        const rect = item.getBoundingClientRect();
+        if (rect.width && rect.height && getComputedStyle(item).visibility !== 'hidden') bottom = Math.max(bottom, (rect.bottom - origin) / scale);
+      });
+      const next = Math.ceil(bottom + 24);
+      setContentSize(previous => previous.screen === screen && previous.height === next ? previous : { screen, height: next });
+    };
+    measure();
+    const resize = new ResizeObserver(measure); resize.observe(node);
+    const changes = new MutationObserver(measure); changes.observe(node, { subtree: true, childList: true, characterData: true });
+    node.addEventListener('load', measure, true);
+    return () => { resize.disconnect(); changes.disconnect(); node.removeEventListener('load', measure, true); };
+  }, [screen, compactPage, flowPage, photoPage, scale]);
   useLayoutEffect(() => {
     if (!flowPage || screen !== 'Diary') return;
     const update = () => {
@@ -616,6 +640,21 @@ export default function App() {
     const error = validatePhotos([...photos, ...selected], existing);
     if (error) setNotice(error); else setPhotos(current => [...current, ...selected]);
   }} />;
+  if (!previewOnly && live && screen === 'DiaryDetail') return <>
+    <main className="reading-page" data-screen="DiaryDetail">
+      <header className="reading-header"><button type="button" aria-label="뒤로 가기" onClick={back}><img src="/assets/504f3.svg" alt="" /></button><h1>오늘의 기록</h1></header>
+      {liveDiary ? <article className="reading-paper">
+        <h2 data-node-id="113:2807"><span className="emotion-dot" style={{background: liveDiary.emotionConfirmedAt ? liveDiary.emotions.find(item => item.isPrimary)?.colorHex ?? '#c7d4cf' : '#c7d4cf'}} />{liveDiary.title}</h2>
+        <p className="reading-date" data-node-id="113:2808">{diaryDateLabelFor(liveDiary.entryDate)}</p>
+        <p className="reading-body" data-node-id="113:2809">{liveDiary.content}</p>
+        {liveDiary.attachments.length > 0 && <section aria-label="일기 사진"><SavedPhotos photos={liveDiary.attachments} onRefresh={async () => { const fresh = await diaryApi.get(liveDiary.id); setLiveDiary(fresh); }} /></section>}
+        <div className="reading-actions"><DiaryEmotions key={liveDiary.id} diary={liveDiary}
+          needsReconfirmation={!liveDiary.emotionConfirmedAt && emotionReminders.pending(liveDiary.id)}
+          onConfirmed={diary => { setLiveDiary(diary); emotionReminders.mark(diary.id, false); }} />
+          <button type="button" className="reading-edit" onClick={() => openDiary(liveDiary.id, true)}>수정하기</button></div>
+      </article> : <p className="reading-loading" role="status">일기를 불러오고 있어요…</p>}
+    </main>{notice && <div className="notice" role="status">{notice}</div>}
+  </>;
   if (!previewOnly && screen === 'Chat') return <>
     <ChatLayout message={message} onMessage={setMessage} onSend={() => { void sendMessage(); }} closed={chat.closed} loading={chat.loading}
       working={chat.working} generating={draftGenerating} canGenerate={chat.canGenerate} turns={chat.turns} photos={photos}
@@ -635,8 +674,8 @@ export default function App() {
     {photoChooser}{notice && <div className="notice" role="status">{notice}</div>}
   </>;
   return <>
-    <main className="screen-viewport" style={{width:393*scale,height:(flowPage ? flowHeight : pageHeight)*scale}}>
-      <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : pageHeight,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`, '--composer-growth': `${screen === 'Chat' ? messageHeight - 44 : 0}px`} as CSSProperties}>
+    <main className={`screen-viewport${compactPage ? ' compact-page' : ''}`} data-screen={screen} style={{width:393*scale,height:Math.max(0,(flowPage ? flowHeight : fittedHeight)-topCrop)*scale}}>
+      <div ref={stage} className="screen-stage" style={{top:-topCrop*scale,height:flowPage ? 'auto' : fittedHeight,minHeight:flowPage && !compactPage ? height : undefined,transform:`scale(${scale})`, '--composer-growth': `${screen === 'Chat' ? messageHeight - 44 : 0}px`} as CSSProperties}>
         {!previewOnly && characterState.authenticated && (screen === 'Characters' || screen === 'CharacterDetail')
           ? <CharacterScreen state={characterState} showDetail={screen === 'CharacterDetail'} onBack={back} onChat={() => {
             // Start with the chosen character rather than resume an unrelated active chat.
