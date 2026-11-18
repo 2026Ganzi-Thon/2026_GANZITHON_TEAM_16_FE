@@ -92,12 +92,16 @@ try {
   await swipe();
   const second = await thread.evaluate(node => node.scrollTop);
   assert(first < before && second < first, `Repeated swipes: ${before}, ${first}, ${second}`);
-  for (const width of [360, 393, 412]) {
+  for (const width of [320, 360, 393, 412, 600]) {
     await page.setViewportSize({ width, height: 420 });
     const layout = await page.locator('.responsive-chat').boundingBox();
     const composer = await page.locator('.responsive-chat-composer').boundingBox();
     assert(Math.abs(layout.width - width) < 1);
+    assert(Math.abs(layout.x) < 1);
     assert(composer.y + composer.height <= 421 && (await thread.boundingBox()).height > 100);
+    await page.evaluate(() => window.scrollTo(0, 300));
+    assert.equal(await page.evaluate(() => window.scrollY), 0, 'Outer page must not scroll');
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No horizontal page overflow');
   }
   await page.setViewportSize({ width: 393, height: 852 });
   // Simulate an in-app browser that resizes only its visual viewport for the keyboard.

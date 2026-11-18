@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { SelectedPhotos } from './Photos';
 import '../mobile-chat.css';
 
@@ -12,21 +12,25 @@ interface Props {
 export default function ChatLayout(props: Props) {
   const input = useRef<HTMLTextAreaElement>(null);
   const [viewport, setViewport] = useState(() => ({ height: window.visualViewport?.height ?? innerHeight, top: window.visualViewport?.offsetTop ?? 0 }));
-  useEffect(() => {
+  useLayoutEffect(() => {
     const update = () => {
       const visual = window.visualViewport;
       // Leave browser zoom accessible; keyboard resize must not scale the UI.
       if (visual && Math.abs(visual.scale - 1) > 0.05) return;
       setViewport({ height: visual?.height ?? innerHeight, top: visual?.offsetTop ?? 0 });
     };
-    const previous = { overflow: document.body.style.overflow, overscroll: document.body.style.overscrollBehavior };
-    document.body.style.overflow = 'hidden'; document.body.style.overscrollBehavior = 'none';
+    const previousScroll = { x: window.scrollX, y: window.scrollY };
+    document.documentElement.classList.add('chat-page-locked');
+    document.body.classList.add('chat-page-locked');
+    window.scrollTo(0, 0);
     update();
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
     window.visualViewport?.addEventListener('scroll', update);
     return () => {
-      document.body.style.overflow = previous.overflow; document.body.style.overscrollBehavior = previous.overscroll;
+      document.documentElement.classList.remove('chat-page-locked');
+      document.body.classList.remove('chat-page-locked');
+      window.scrollTo(previousScroll.x, previousScroll.y);
       window.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
