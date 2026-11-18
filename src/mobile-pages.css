@@ -1,0 +1,14 @@
+/* Remove the exported design's reserved status-bar area on live subpages. */
+.compact-page[data-screen="Archive"] .design-root{height:121px!important;min-height:0;overflow:hidden}
+.compact-page[data-screen="Archive"] .archive-list{position:relative;top:auto;bottom:auto;height:auto;overflow:visible;min-height:0}
+.compact-page .record-flow-page{min-height:0!important;padding-bottom:32px}
+.compact-page .record-flow-page>.diary-live-list{min-height:0}
+.reading-page{width:100%;max-width:520px;margin:0 auto;padding-bottom:max(20px,env(safe-area-inset-bottom));color:#223037}
+.reading-header{height:64px;position:relative;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px #22303712;background:white}
+.reading-header h1{font-size:20px;font-weight:600;color:#1e838a;margin:0}
+.reading-header>button{position:absolute;left:12px;width:44px;height:44px;display:grid;place-items:center;background:transparent;padding:8px}.reading-header img{width:28px;height:28px}
+.reading-paper{margin:24px 16px 0;border-radius:16px;background:#fff;box-shadow:0 2px 8px #22303720;padding:24px 18px;overflow-wrap:anywhere}
+.reading-paper h2{display:flex;align-items:flex-start;gap:10px;font-size:19px;line-height:1.5;margin:0;padding-bottom:14px;border-bottom:1px solid #e6e6e6}.reading-paper h2 .emotion-dot{margin-top:6px}
+.reading-date{text-align:right;color:#999;font-size:13px;line-height:1.6;margin:10px 0 24px}
+.reading-body{font-size:17px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.reading-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:24px}.reading-actions .diary-emotion-button{position:static;left:auto;top:auto;width:auto;flex:1;min-width:180px}.reading-edit{border-radius:14px;padding:12px 20px;background:#1e838a;color:#fff;min-height:46px}.reading-loading{padding:32px 16px;text-align:center;color:#858585}
