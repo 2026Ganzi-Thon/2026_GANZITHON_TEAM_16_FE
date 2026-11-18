@@ -87,6 +87,16 @@ type NodeProps = { children?: ReactNode; className?: string; style?: CSSProperti
 
 export default function App() {
   const getScreen = (): ScreenName => {
+    const callback = /^\/login\/oauth2\/code\/(kakao|google|naver)$/.test(location.pathname);
+    const previewAllowed = import.meta.env.DEV && (location.pathname.startsWith('/design/') || sessionStorage.getItem('mowoo.previewMode') === '1');
+    if (!tokens.get() && !callback && location.pathname !== '/' && !previewAllowed) {
+      history.replaceState(history.state, '', '/');
+      return 'Login';
+    }
+    if (import.meta.env.PROD && location.pathname.startsWith('/design/')) {
+      history.replaceState(history.state, '', '/');
+      return 'Login';
+    }
     const preview = location.pathname.match(/^\/design\/(\w+)$/)?.[1];
     return preview && preview in screens ? preview as ScreenName : paths[location.pathname] ?? 'Login';
   };
@@ -105,6 +115,10 @@ export default function App() {
   const draftOperation = useRef<AbortController | null>(null);
   // Logged in -> real API; logged out -> local preview data.
   const [live, setLive] = useState(() => Boolean(tokens.get()));
+  useLayoutEffect(() => {
+    const next = getScreen();
+    if (next !== screen) setScreen(next);
+  }, [live, screen]);
   useEffect(() => {
     draftOperation.current?.abort(); draftOperation.current = null;
     setDraftGenerating(false); setDraftError('');
@@ -161,6 +175,9 @@ export default function App() {
   });
 
   const go = (next: ScreenName, replace = false) => {
+    if (next !== 'Login' && !tokens.get() && !(import.meta.env.DEV && sessionStorage.getItem('mowoo.previewMode') === '1')) {
+      navigate('/', true); setScreen('Login'); return;
+    }
     const path = Object.entries(paths).find(([, value]) => value === next)?.[0] ?? `/design/${next}`;
     if (location.pathname === path && !replace) return;
     // Opening the calendar fresh starts at this month; only "back" returns to a remembered month.
@@ -311,10 +328,10 @@ export default function App() {
   if (screen === 'Login') {
     // Preserve preview entry only when no real login provider is configured.
     const configured = hasSocialConfiguration();
-    const enterPreview = () => { go('Home', true); setNotice('로그인 없이 미리보기로 들어왔어요. 데이터는 이 브라우저에만 저장돼요.'); };
-    actions['91:79'] = ['카카오 로그인', configured ? () => startLogin('kakao') : enterPreview];
-    actions['227:217'] = ['구글 로그인', configured ? () => startLogin('google') : enterPreview];
-    actions['91:69'] = ['네이버 로그인', configured ? () => startLogin('naver') : enterPreview];
+    const enterPreview = () => { sessionStorage.setItem('mowoo.previewMode', '1'); go('Home', true); setNotice('로그인 없이 미리보기로 들어왔어요. 데이터는 이 브라우저에만 저장돼요.'); };
+    actions['91:79'] = ['카카오 로그인', configured || import.meta.env.PROD ? () => startLogin('kakao') : enterPreview];
+    actions['227:217'] = ['구글 로그인', configured || import.meta.env.PROD ? () => startLogin('google') : enterPreview];
+    actions['91:69'] = ['네이버 로그인', configured || import.meta.env.PROD ? () => startLogin('naver') : enterPreview];
   }
   if (screen === 'Home') {
     link(['94:104'], '마이페이지', 'MyPage'); link(['10:530','10:518','10:480'], '대화 시작하기', 'Chat');

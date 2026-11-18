@@ -18,6 +18,12 @@ try {
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
   await page.reload();
   assert(await page.evaluate(() => Boolean(navigator.serviceWorker.controller)));
+  for (const path of ['/home', '/chat', '/me/edit', '/calendar', '/records/select', '/design/Home']) {
+    await page.goto(base + path);
+    await page.waitForURL(base + '/');
+    await page.getByRole('button', { name: '카카오 로그인', exact: true }).waitFor();
+    assert.equal(await page.getByText('김유저야 반가워!', { exact: true }).count(), 0);
+  }
   const manifest = await page.evaluate(async () => (await fetch(document.querySelector('link[rel="manifest"]').href)).json());
   assert.equal(manifest.start_url, '/'); assert.equal(manifest.scope, '/'); assert.equal(manifest.display, 'standalone');
   for (const size of [192, 512]) assert(manifest.icons.some(icon => icon.sizes === `${size}x${size}`));
