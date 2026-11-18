@@ -13,7 +13,7 @@ try {
     server.stdout.on('data', data => { if (data.toString().includes('3100')) { clearTimeout(timeout); resolve(); } });
   });
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const page = await browser.newPage({ viewport: { width: 393, height: 852 }, reducedMotion: 'reduce' });
+  const page = await browser.newPage({ viewport: { width: 393, height: 852 }, hasTouch: true, isMobile: true, reducedMotion: 'reduce' });
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const diary = { id: 'past-diary', sourceSessionId: null, entryDate: today, title: '지난 시험의 기억', content: '지난번 시험도 걱정했지만 잘 마쳤다.', savedAt: today, emotionConfirmedAt: null, emotions: [], attachments: [] };
@@ -71,7 +71,49 @@ try {
     return error(404, 'UNMOCKED', `${method} ${path}`);
   });
   const open = async path => { await page.goto(base + path); await page.getByRole('textbox', { name: '메시지' }).waitFor(); await page.locator('.chat-bubble-assistant').first().waitFor(); };
-  const generate = () => page.locator('[data-node-id="30:3559"]');
+  const generate = () => page.locator('.responsive-chat-draft button');
+  // Separate finger gestures must both move history; keyboard resize must not shrink its width.
+  await open('/chat?session=retry');
+  const thread = page.locator('.chat-thread');
+  const cdp = await page.context().newCDPSession(page);
+  const swipe = async () => {
+    const box = await thread.boundingBox();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 180, y: box.y + 80 }] });
+    for (let step = 1; step <= 8; step++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 180, y: box.y + 80 + step * 20 }] });
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await new Promise(resolve => setTimeout(resolve, 300));
+  };
+  const before = await thread.evaluate(node => node.scrollTop);
+  await swipe();
+  const first = await thread.evaluate(node => node.scrollTop);
+  await swipe();
+  const second = await thread.evaluate(node => node.scrollTop);
+  assert(first < before && second < first, `Repeated swipes: ${before}, ${first}, ${second}`);
+  for (const width of [360, 393, 412]) {
+    await page.setViewportSize({ width, height: 420 });
+    const layout = await page.locator('.responsive-chat').boundingBox();
+    const composer = await page.locator('.responsive-chat-composer').boundingBox();
+    assert(Math.abs(layout.width - width) < 1);
+    assert(composer.y + composer.height <= 421 && (await thread.boundingBox()).height > 100);
+  }
+  await page.setViewportSize({ width: 393, height: 852 });
+  // Simulate an in-app browser that resizes only its visual viewport for the keyboard.
+  await page.evaluate(() => {
+    Object.defineProperty(window.visualViewport, 'height', { configurable: true, value: 390 });
+    Object.defineProperty(window.visualViewport, 'offsetTop', { configurable: true, value: 50 });
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  });
+  await page.waitForFunction(() => Math.abs(document.querySelector('.responsive-chat').getBoundingClientRect().height - 390) < 1);
+  const keyboardComposer = await page.locator('.responsive-chat-composer').boundingBox();
+  assert(keyboardComposer.y + keyboardComposer.height <= 441);
+  assert.equal((await page.locator('.responsive-chat').boundingBox()).width, 393);
+  await page.evaluate(() => {
+    delete window.visualViewport.height; delete window.visualViewport.offsetTop;
+    window.visualViewport.dispatchEvent(new Event('resize'));
+  });
   // Draft generation failure preserves an ended session through refresh and archive.
   await open('/chat?session=retry');
   await generate().click();
@@ -161,7 +203,7 @@ try {
   await page.waitForResponse(response => response.url().endsWith('/diary-references'));
   assert(page.url().endsWith('/archive')); assert.equal(await modal.count(), 0);
   // Logged-out preview does not expose real recommendation controls.
-  await page.evaluate(() => { sessionStorage.setItem('preview-test', 'true'); sessionStorage.removeItem('mowoo.accessToken'); });
+  await page.evaluate(() => { sessionStorage.setItem('preview-test', 'true'); sessionStorage.setItem('mowoo.previewMode', '1'); sessionStorage.removeItem('mowoo.accessToken'); });
   await page.goto(base + '/chat');
   await page.getByRole('textbox', { name: '메시지' }).waitFor();
   assert.equal(await suggest().count(), 0);
