@@ -31,6 +31,15 @@ interface Props {
 export default function ChatThread({ messages, pending, loading, closed, hasOlder, editableId, onLoadOlder, onEdit, onCharacter, activeCharacterId, disabled, draftError, sessionId, usePastDiaries, comparing, onReference, onOpenDiary }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const keepFromBottom = useRef<number | null>(null);
+  const stickToBottom = useRef(true);
+  useLayoutEffect(() => { stickToBottom.current = true; }, [sessionId]);
+  useEffect(() => {
+    const node = scroller.current;
+    if (!node) return;
+    const observer = new ResizeObserver(() => { if (stickToBottom.current) node.scrollTop = node.scrollHeight; });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const [editing, setEditing] = useState<{ id: string; text: string; saving: boolean } | null>(null);
   const [portraits, setPortraits] = useState<Record<string, { name: string; image: string; fallback: string }>>({});
   const [renewedPhotos, setRenewedPhotos] = useState<Record<string, PhotoAttachment[]>>({});
@@ -69,7 +78,7 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
     if (keepFromBottom.current !== null) {
       node.scrollTop = node.scrollHeight - keepFromBottom.current;
       keepFromBottom.current = null;
-    } else {
+    } else if (stickToBottom.current || pending) {
       node.scrollTop = node.scrollHeight;
     }
   }, [messages, pending, draftError]);
@@ -105,7 +114,9 @@ export default function ChatThread({ messages, pending, loading, closed, hasOlde
   };
 
   return (
-    <div className="chat-thread" ref={scroller} data-scroll-key="chat-thread" role="log" aria-label="대화 내용" aria-busy={loading || pending !== null}>
+    <div className="chat-thread" ref={scroller} data-scroll-key="chat-thread" role="log" aria-label="대화 내용" aria-busy={loading || pending !== null}
+      onScroll={event => { const node = event.currentTarget; stickToBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48; }}
+      onLoadCapture={() => { const node = scroller.current; if (node && stickToBottom.current) node.scrollTop = node.scrollHeight; }}>
       {hasOlder && <button type="button" className="chat-older" disabled={disabled} onClick={() => { void loadOlder(); }}>이전 대화 더 보기</button>}
       {!loading && messages.length === 0 && !pending && (
         <p className="chat-empty">{closed ? '대화 내용이 없어요.' : '모우에게 오늘 있었던 일을 편하게 들려주세요.'}</p>

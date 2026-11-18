@@ -22,6 +22,7 @@ import { useEmotionReminders } from './features/diary/useEmotionReminders';
 import { validatePhotos } from './features/attachments';
 import { SavedPhotos, SelectedPhotos } from './components/Photos';
 import DiaryChoiceModal from './components/DiaryChoiceModal';
+import ChatLayout from './components/ChatLayout';
 
 // Static sample nodes replaced by live layers.
 const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
@@ -593,9 +594,9 @@ export default function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [flowPage, screen]);
-  // Single-page designs (login, modals, chat) shrink to fit a short window so their
-  // bottom buttons stay visible; long scrolling pages (Home, MyPage) fit width only.
-  const scale = Math.min(1, viewport.width / 393, !flowPage && !photoPage && height <= 900 ? viewport.height / height : 1);
+  // Mobile designs fit width without shrinking when the keyboard reduces height.
+  // Live chat uses an independent responsive layout below.
+  const scale = Math.min(viewport.width <= 520 ? viewport.width / 393 : 1, !flowPage && !photoPage && viewport.width > 520 && height <= 900 ? viewport.height / height : 1);
   useLayoutEffect(() => {
     if (!flowPage || screen !== 'Diary') return;
     const update = () => {
@@ -608,6 +609,31 @@ export default function App() {
     window.addEventListener('resize', update);
     return () => { window.removeEventListener('scroll', update); window.removeEventListener('resize', update); };
   }, [flowPage, screen, flowHeight, scale]);
+  const photoChooser = <input ref={fileInput} type="file" accept="image/jpeg,image/png" multiple aria-label="사진 파일 선택" hidden onChange={e => {
+    const selected = Array.from(e.target.files ?? []); e.target.value = '';
+    if (!selected.length || !live || busy || chat.working || draftGenerating || !['Chat', 'DiaryEditor'].includes(screen)) return;
+    const existing = screen === 'DiaryEditor' ? (liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id)).length : 0;
+    const error = validatePhotos([...photos, ...selected], existing);
+    if (error) setNotice(error); else setPhotos(current => [...current, ...selected]);
+  }} />;
+  if (!previewOnly && screen === 'Chat') return <>
+    <ChatLayout message={message} onMessage={setMessage} onSend={() => { void sendMessage(); }} closed={chat.closed} loading={chat.loading}
+      working={chat.working} generating={draftGenerating} canGenerate={chat.canGenerate} turns={chat.turns} photos={photos}
+      onRemovePhoto={index => setPhotos(current => current.filter((_, i) => i !== index))}
+      onPhoto={() => { if (live) fileInput.current?.click(); else setNotice('사진 첨부는 로그인 후 사용할 수 있어요.'); }}
+      onVoice={() => setNotice('음성 입력은 아직 연결되지 않았어요.')} onBack={back} onHome={() => go('Home')} onGenerate={() => { void generateDiary(); }}>
+      <ChatThread messages={chat.messages} pending={chat.pending} loading={chat.loading} closed={chat.closed}
+        hasOlder={chat.hasOlder} editableId={chat.editableId} onLoadOlder={chat.loadOlder} onEdit={chat.edit}
+        onCharacter={() => go('Characters')} activeCharacterId={chat.session?.characterId ?? homeCharacter?.id}
+        disabled={chat.working || draftGenerating} draftError={draftError} sessionId={chat.session?.id ?? null}
+        usePastDiaries={live && profile.usePastDiaries} comparing={chat.comparing} onReference={chat.referenceDiary} onOpenDiary={id => openDiary(id)} />
+    </ChatLayout>
+    {showProgress && <div className="responsive-chat-progress" role="dialog" aria-modal="true" aria-label="대화 진행도"><section>
+      <h2>대화 진행도({Math.min(chat.turns, REQUIRED_TURNS)}/{REQUIRED_TURNS})</h2><p>모우와 {REQUIRED_TURNS}번 이야기를 나누면<br />오늘의 일기를 만들 수 있어요.</p>
+      <button type="button" onClick={() => setShowProgress(false)}>닫기</button>
+    </section></div>}
+    {photoChooser}{notice && <div className="notice" role="status">{notice}</div>}
+  </>;
   return <>
     <main className="screen-viewport" style={{width:393*scale,height:(flowPage ? flowHeight : pageHeight)*scale}}>
       <div ref={stage} className="screen-stage" style={{height:flowPage ? 'auto' : pageHeight,minHeight:flowPage ? height : undefined,transform:`scale(${scale})`, '--composer-growth': `${screen === 'Chat' ? messageHeight - 44 : 0}px`} as CSSProperties}>
@@ -657,13 +683,7 @@ export default function App() {
     {flowPage && screen === 'Diary' && <button type="button" className="diary-create-floating" style={{ bottom: floatingBottom }} aria-label="오늘을 기록하러 가기" onClick={() => go('DiaryChoice')}>
       <img src="/assets/6349b.svg" alt="" />
     </button>}
-    <input ref={fileInput} type="file" accept="image/jpeg,image/png" multiple aria-label="사진 파일 선택" hidden onChange={e => {
-      const selected = Array.from(e.target.files ?? []); e.target.value = '';
-      if (!selected.length || !live || busy || chat.working || draftGenerating || !['Chat', 'DiaryEditor'].includes(screen)) return;
-      const existing = screen === 'DiaryEditor' ? (liveDiary?.attachments ?? []).filter(photo => !removedPhotos.includes(photo.id)).length : 0;
-      const error = validatePhotos([...photos, ...selected], existing);
-      if (error) setNotice(error); else setPhotos(current => [...current, ...selected]);
-    }} />
+    {photoChooser}
     {notice && <div className="notice" role="status">{notice}</div>}
     {authenticating && <div className="notice" role="status">로그인을 완료하고 있어요…</div>}
   </>;

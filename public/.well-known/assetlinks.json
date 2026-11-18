@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "dev.pages.app_2026_ganzithon_team_16_fe.twa",
+        "sha256_cert_fingerprints": ["9C:C2:14:52:2F:11:5F:B5:EE:83:2C:02:39:0B:A1:43:8B:77:45:19:79:F7:F6:E1:A4:BB:F2:C1:76:71:62:19"]
+      }
+    }]
