@@ -14,4 +14,5 @@ import './diary.css';
 import './emotions.css';
 import './recap.css';
 import './date-picker.css';
+import './pwa';
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);

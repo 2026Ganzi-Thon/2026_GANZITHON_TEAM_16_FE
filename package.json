@@ -17,6 +17,7 @@
     "check:photo-attachments": "node scripts/verify-photo-attachments.mjs",
     "check:diary-pagination": "node scripts/verify-diary-pagination.mjs",
     "check:cloudflare-proxy": "node scripts/verify-cloudflare-proxy.mjs",
+    "check:pwa": "node scripts/verify-pwa.mjs",
     "check:auth-refresh": "node scripts/verify-auth-refresh.mjs",
     "check:diary-emotions": "node scripts/verify-diary-emotions.mjs",
     "check:chat-delete": "node scripts/verify-chat-delete.mjs",
