@@ -1,58 +1,38 @@
-# MOWOO Frontend
+# MOWOO Frontend — UI
 
-모우 프론트엔드의 초기 개발 환경입니다.
-
-## 기술
-
-- React 19
-- TypeScript
-- Vite
-- CSS
+React + TypeScript + Vite 기반 피그마 UI 구현입니다. 이 브랜치에는 카카오 로그인·토큰 처리·로그아웃을 추가했습니다. 프로필 GET/PATCH와 설정 저장도 별도 모듈에 연결했습니다. 비로그인 상태에서는 로컬 미리보기를 사용합니다.
 
 ## 실행
-
-Node.js LTS와 npm을 설치한 후 저장소 최상위에서 실행합니다.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-주소: http://localhost:3000
+배포된 백엔드(https://api.mowoo.kro.kr)에 붙이려면 `.env.local`에 `API_PROXY_TARGET=https://api.mowoo.kro.kr`를 넣으세요. 비우면 로컬 백엔드(8080)로 연결합니다.
 
-포트 3000이 사용 중이면 기존 서버를 종료한 뒤 실행합니다.
+카카오 로그인은 `.env.local`과 백엔드 실행이 필요합니다. 설정과 전체 API 연동은 [백엔드 연동 문서](docs/BACKEND_INTEGRATION.md), 인증은 [카카오 로그인 문서](docs/AUTH.md)를 참고하세요. UI만 확인하려면 /home으로 직접 접근합니다.
 
-## 빌드
+## 포함 범위
+
+- 피그마 20개 화면·모달과 원본 자산 120개
+- 화면 이동, 실제 방문 순서의 뒤로가기·스크롤 복원
+- 로컬 프로필 편집·설정 토글·일기 편집·선택 체크박스
+- 브라우저 localStorage로 미리보기 값 저장
+
+로그인하면 대화·보관함·일기·캘린더·기록 삭제·계정 삭제가 실제 API로 동작하고, 로그인하지 않은 미리보기에서는 브라우저 localStorage 예시 데이터를 사용합니다. 연동 범위와 남은 작업은 [API 연동 현황](docs/API_INTEGRATION.md)을 참고하세요.
+
+## 확인
 
 ```sh
 npm run build
+npm run check:layout
+npm run check:navigation
+npm run check:controls
 ```
 
-TypeScript 검사 후 `dist/`에 빌드 결과를 생성합니다.
+브라우저 검사는 Chrome이 필요합니다. 상세 경로와 검사는 [검증 문서](docs/TESTING.md)를 참고하세요. 393px 디자인을 기준으로 좁은 화면에서는 축소합니다. SF Pro는 Arial로 대체합니다.
 
-```sh
-npm run preview
-```
+## 브랜치 범위
 
-## 구조
-
-```text
-src/
-  App.tsx         기본 화면
-  main.tsx        React 진입점
-  index.css       기본 스타일
-  vite-env.d.ts   Vite 타입 선언
-index.html
-tsconfig.json
-vite.config.ts
-```
-
-초기 화면과 실행·빌드 설정만 포함합니다. 서비스 UI, 라우팅, API 연동, 인증, 환경변수는 기능 브랜치에서 추가합니다.
-
-## 브랜치
-
-- `main`: 초기 기준 및 안정 버전
-- `develop`: 개발 통합
-- `feat/*`: 기능 구현 후 `develop`으로 PR
-
-빈 저장소의 첫 커밋을 `main`에 올린 후 동일한 커밋에서 `develop`을 생성합니다.
+이 PR: feature/user-profile-api → develop. feature/frontend-ui, feature/kakao-login 병합 후 진행합니다.

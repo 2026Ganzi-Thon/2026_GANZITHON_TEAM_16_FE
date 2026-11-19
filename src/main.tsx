@@ -1,10 +1,18 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import '@fontsource/pretendard/400.css';
+import '@fontsource/pretendard/300.css';
+import '@fontsource/pretendard/500.css';
+import '@fontsource/pretendard/600.css';
+import '@fontsource/pretendard/700.css';
 import App from './App';
-import './index.css';
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+import './styles.css';
+import './design.css';
+import './chat.css';
+import './characters.css';
+import './diary.css';
+import './emotions.css';
+import './recap.css';
+import './date-picker.css';
+import './pwa';
+ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
