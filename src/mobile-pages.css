@@ -16,3 +16,5 @@
    circles spill into the side margins instead of leaving plain white bars. */
 #root:has(>.screen-viewport[data-screen="Login"]){overflow:clip}
 .screen-viewport[data-screen="Login"],.screen-viewport[data-screen="Login"] .design-root{overflow:visible}
+/* Delete popups sit over the real My 모우 page instead of the design's sample copy. */
+.mypage-background{position:absolute;inset:0;overflow:hidden;pointer-events:none}

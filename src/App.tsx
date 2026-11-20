@@ -35,8 +35,12 @@ const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
   Diary: new Set(['155:143']),
   Home: new Set(['94:191', '106:84']),
   // Keep two sample records until the record list/delete API exists.
-  DeleteSelected: new Set(['113:1008', '113:1022', '113:966']), // 113:966: drawn scrollbar
+  DeleteSelected: new Set(['113:1008', '113:1022', '113:966', ...['706', '707', '729', '738', '739', '798', '799'].map(n => `113:${n}`)]), // 113:966: drawn scrollbar
+  // The delete popups' sample My 모우 copy ("김유저", 999일); the real MyPage is drawn behind them.
+  DeleteAll: new Set(['2834', '2835', '2857', '2866', '2867', '2926', '2927'].map(n => `113:${n}`)),
+  Deleted: new Set(['1763', '1764', '1786', '1795', '1796', '1855', '1856'].map(n => `113:${n}`)),
 };
+const deleteScreens: ScreenName[] = ['DeleteAll', 'DeleteSelected', 'Deleted'];
 const progressModalNodes = ['130:563', '130:653'];
 const diaryDateParam = () => {
   const value = new URLSearchParams(location.search).get('date');
@@ -126,7 +130,7 @@ export default function App() {
     setDraftGenerating(false); setDraftError('');
     return () => draftOperation.current?.abort();
   }, [screen, viewSession, live]);
-  const myPageStats = useMyPageStats(live && screen === 'MyPage' && !location.pathname.startsWith('/design/'));
+  const myPageStats = useMyPageStats(live && (screen === 'MyPage' || deleteScreens.includes(screen)) && !location.pathname.startsWith('/design/'));
   useEffect(() => {
     const changed = () => setLive(Boolean(tokens.get()));
     addEventListener('mowoo:auth-change', changed);
@@ -448,6 +452,8 @@ export default function App() {
         const [y, m, d] = todaySeoul().split('-').map(Number);
         children = [`${y}년 ${m}월 ${d}일`];
       }
+      // Inside each popup's frame group, whose white fill would otherwise cover the background.
+      if (['113:2833', '113:705', '113:1762'].includes(id) && deleteScreens.includes(screen)) children = [myPageBackground(), ...Children.toArray(children)];
       if ((screen === 'Diary' || screen === 'Home') && id === screens[screen].nodeId) {
         children = [...Children.toArray(children), screen === 'Diary'
           ? <WeekRow key="week-row" top={439} left={27} days={week.days} byDate={week.byDate} onOpen={openWeekDiary} onEmpty={emptyDay} />
@@ -578,6 +584,12 @@ export default function App() {
     const root = screens.ChatProgress.Component() as ReactElement<NodeProps>;
     const modal = Children.toArray(root.props.children).filter(child => isValidElement<NodeProps>(child) && progressModalNodes.includes(child.props['data-node-id'] ?? ''));
     return enhance(cloneElement(root, {}, modal));
+  }
+  function myPageBackground() {
+    renderedScreen = 'MyPage';
+    const background = enhance(screens.MyPage.Component());
+    renderedScreen = screen;
+    return <div key="mypage-background" className="mypage-background" inert>{background}</div>;
   }
   function diaryChoiceBackground() {
     renderedScreen = 'Diary';
