@@ -270,7 +270,13 @@ export default function App() {
   useEffect(() => {
     const previousRestoration = history.scrollRestoration;
     history.scrollRestoration = 'manual';
-    const resize = () => setViewport({ width: innerWidth, height: innerHeight });
+    // The on-screen keyboard only shrinks the height while a field is focused;
+    // keep the previous height then so the screen doesn't zoom out while typing.
+    const typing = () => document.activeElement?.matches('input, textarea, [contenteditable="true"]') ?? false;
+    const resize = () => setViewport(previous => ({
+      width: innerWidth,
+      height: innerWidth === previous.width && typing() ? Math.max(previous.height, innerHeight) : innerHeight,
+    }));
     const pop = () => { setScreen(getScreen()); setViewSession(sessionParam()); setDiaryId(diaryIdParam()); setShowProgress(false); setNotice(''); };
     addEventListener('resize', resize); addEventListener('popstate', pop);
     addEventListener('pagehide', rememberPosition);
@@ -597,9 +603,11 @@ export default function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [flowPage, screen]);
-  // Mobile designs fit width without shrinking when the keyboard reduces height.
-  // Live chat uses an independent responsive layout below.
-  const scale = Math.min(viewport.width <= 520 ? viewport.width / 393 : 1, !flowPage && !photoPage && viewport.width > 520 && height <= 900 ? viewport.height / height : 1);
+  // Phones fit width; the login screen also fits height so its buttons stay visible
+  // under browser bars (KakaoTalk, Safari). Other screens scroll. Wider windows fit
+  // height as before. Live chat uses an independent responsive layout below.
+  const fitScreen = !flowPage && !photoPage && height <= 900 && (viewport.width > 520 || screen === 'Login');
+  const scale = Math.min(viewport.width <= 520 ? viewport.width / 393 : 1, fitScreen ? viewport.height / pageHeight : 1);
   const [contentSize, setContentSize] = useState({ screen, height: pageHeight });
   const fittedHeight = compactPage && !flowPage && !photoPage && contentSize.screen === screen ? contentSize.height : pageHeight;
   useLayoutEffect(() => {

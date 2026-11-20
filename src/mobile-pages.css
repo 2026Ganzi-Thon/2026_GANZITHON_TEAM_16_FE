@@ -12,3 +12,7 @@
 .reading-date{text-align:right;color:#999;font-size:13px;line-height:1.6;margin:10px 0 24px}
 .reading-body{font-size:17px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
 .reading-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:24px}.reading-actions .diary-emotion-button{position:static;left:auto;top:auto;width:auto;flex:1;min-width:180px}.reading-edit{border-radius:14px;padding:12px 20px;background:#1e838a;color:#fff;min-height:46px}.reading-loading{padding:32px 16px;text-align:center;color:#858585}
+/* A height-fitted login screen is narrower than the phone; let its blurred background
+   circles spill into the side margins instead of leaving plain white bars. */
+#root:has(>.screen-viewport[data-screen="Login"]){overflow:clip}
+.screen-viewport[data-screen="Login"],.screen-viewport[data-screen="Login"] .design-root{overflow:visible}
