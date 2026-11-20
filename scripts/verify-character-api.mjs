@@ -49,7 +49,16 @@ try {
   fs.mkdirSync('.local/character-api', { recursive: true });
   await page.goto(base + '/characters');
   await page.getByRole('button', { name: '서버 다정한 모우 상세보기', exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: /퀸 마인드 모우/ }).count(), 0);
+  // Premium characters the server doesn't list yet appear as not owned and open without an API call.
+  const queen = page.getByRole('button', { name: '퀸 마인드 모우 상세보기', exact: true });
+  assert.equal(await queen.getByText('프리미엄 · 미보유', { exact: true }).count(), 1);
+  const callsBeforePreview = detailCalls;
+  await queen.click();
+  await page.getByRole('dialog').getByText('아직 보유하지 않은 모우예요.', { exact: true }).waitFor();
+  assert.equal(detailCalls, callsBeforePreview);
+  assert(await page.getByRole('button', { name: '보유한 캐릭터만 선택할 수 있어요', exact: true }).isDisabled());
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '서버 다정한 모우 상세보기', exact: true }).waitFor();
   await page.waitForFunction(() => [...document.querySelectorAll('.character-card img')].every(image => image.complete && image.naturalWidth > 0));
   await page.getByRole('button', { name: '서버 다정한 모우 상세보기', exact: true }).click();
   await page.getByRole('dialog').getByText('상세 응답: 서버 다정한 모우', { exact: true }).waitFor();
