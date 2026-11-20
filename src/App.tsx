@@ -35,8 +35,12 @@ const hiddenNodes: Partial<Record<ScreenName, Set<string>>> = {
   Diary: new Set(['155:143']),
   Home: new Set(['94:191', '106:84']),
   // Keep two sample records until the record list/delete API exists.
-  DeleteSelected: new Set(['113:1008', '113:1022', '113:966']), // 113:966: drawn scrollbar
+  DeleteSelected: new Set(['113:1008', '113:1022', '113:966', ...['706', '707', '729', '738', '739', '798', '799'].map(n => `113:${n}`)]), // 113:966: drawn scrollbar
+  // The delete popups' sample My 모우 copy ("김유저", 999일); the real MyPage is drawn behind them.
+  DeleteAll: new Set(['2834', '2835', '2857', '2866', '2867', '2926', '2927'].map(n => `113:${n}`)),
+  Deleted: new Set(['1763', '1764', '1786', '1795', '1796', '1855', '1856'].map(n => `113:${n}`)),
 };
+const deleteScreens: ScreenName[] = ['DeleteAll', 'DeleteSelected', 'Deleted'];
 const progressModalNodes = ['130:563', '130:653'];
 const diaryDateParam = () => {
   const value = new URLSearchParams(location.search).get('date');
@@ -126,7 +130,7 @@ export default function App() {
     setDraftGenerating(false); setDraftError('');
     return () => draftOperation.current?.abort();
   }, [screen, viewSession, live]);
-  const myPageStats = useMyPageStats(live && screen === 'MyPage' && !location.pathname.startsWith('/design/'));
+  const myPageStats = useMyPageStats(live && (screen === 'MyPage' || deleteScreens.includes(screen)) && !location.pathname.startsWith('/design/'));
   useEffect(() => {
     const changed = () => setLive(Boolean(tokens.get()));
     addEventListener('mowoo:auth-change', changed);
@@ -270,7 +274,13 @@ export default function App() {
   useEffect(() => {
     const previousRestoration = history.scrollRestoration;
     history.scrollRestoration = 'manual';
-    const resize = () => setViewport({ width: innerWidth, height: innerHeight });
+    // The on-screen keyboard only shrinks the height while a field is focused;
+    // keep the previous height then so the screen doesn't zoom out while typing.
+    const typing = () => document.activeElement?.matches('input, textarea, [contenteditable="true"]') ?? false;
+    const resize = () => setViewport(previous => ({
+      width: innerWidth,
+      height: innerWidth === previous.width && typing() ? Math.max(previous.height, innerHeight) : innerHeight,
+    }));
     const pop = () => { setScreen(getScreen()); setViewSession(sessionParam()); setDiaryId(diaryIdParam()); setShowProgress(false); setNotice(''); };
     addEventListener('resize', resize); addEventListener('popstate', pop);
     addEventListener('pagehide', rememberPosition);
@@ -442,6 +452,8 @@ export default function App() {
         const [y, m, d] = todaySeoul().split('-').map(Number);
         children = [`${y}년 ${m}월 ${d}일`];
       }
+      // Inside each popup's frame group, whose white fill would otherwise cover the background.
+      if (['113:2833', '113:705', '113:1762'].includes(id) && deleteScreens.includes(screen)) children = [myPageBackground(), ...Children.toArray(children)];
       if ((screen === 'Diary' || screen === 'Home') && id === screens[screen].nodeId) {
         children = [...Children.toArray(children), screen === 'Diary'
           ? <WeekRow key="week-row" top={439} left={27} days={week.days} byDate={week.byDate} onOpen={openWeekDiary} onEmpty={emptyDay} />
@@ -573,6 +585,12 @@ export default function App() {
     const modal = Children.toArray(root.props.children).filter(child => isValidElement<NodeProps>(child) && progressModalNodes.includes(child.props['data-node-id'] ?? ''));
     return enhance(cloneElement(root, {}, modal));
   }
+  function myPageBackground() {
+    renderedScreen = 'MyPage';
+    const background = enhance(screens.MyPage.Component());
+    renderedScreen = screen;
+    return <div key="mypage-background" className="mypage-background" inert>{background}</div>;
+  }
   function diaryChoiceBackground() {
     renderedScreen = 'Diary';
     const background = enhance(screens.Diary.Component());
@@ -597,9 +615,11 @@ export default function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [flowPage, screen]);
-  // Mobile designs fit width without shrinking when the keyboard reduces height.
-  // Live chat uses an independent responsive layout below.
-  const scale = Math.min(viewport.width <= 520 ? viewport.width / 393 : 1, !flowPage && !photoPage && viewport.width > 520 && height <= 900 ? viewport.height / height : 1);
+  // Phones fit width; the login screen also fits height so its buttons stay visible
+  // under browser bars (KakaoTalk, Safari). Other screens scroll. Wider windows fit
+  // height as before. Live chat uses an independent responsive layout below.
+  const fitScreen = !flowPage && !photoPage && height <= 900 && (viewport.width > 520 || screen === 'Login');
+  const scale = Math.min(viewport.width <= 520 ? viewport.width / 393 : 1, fitScreen ? viewport.height / pageHeight : 1);
   const [contentSize, setContentSize] = useState({ screen, height: pageHeight });
   const fittedHeight = compactPage && !flowPage && !photoPage && contentSize.screen === screen ? contentSize.height : pageHeight;
   useLayoutEffect(() => {

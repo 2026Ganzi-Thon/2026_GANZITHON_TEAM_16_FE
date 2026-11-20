@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { tokens } from '../../lib/http';
 import { characterApi, type Character } from './api';
+import { characterCatalog } from './catalog';
+
+// Premium characters from the design that the server doesn't list yet. Shown as not owned;
+// their ids never reach the API, so they can't be selected or used for a chat.
+const previewPrefix = 'premium-preview-';
+const premiumPreviews = (items: Character[]): Character[] => characterCatalog
+  .filter(info => !info.owned && !items.some(item => item.code.toLowerCase() === info.key))
+  .map(info => ({ id: `${previewPrefix}${info.key}`, code: info.key.toUpperCase(), name: info.name, description: info.description, imageUrl: null, isPremium: true, isOwned: false }));
 
 const selectionKey = 'mowoo.selectedCharacter';
 // The subject scopes a UI preference only; authorization is always checked by the server.
@@ -43,7 +51,7 @@ export function useCharacters(enabled: boolean, detailKey: string | null) {
     setLoading(true); setError(''); setItems([]);
     characterApi.list(controller.signal).then(result => {
       if (controller.signal.aborted) return;
-      setItems(result.items);
+      setItems([...result.items, ...premiumPreviews(result.items)]);
       let stored: { owner?: string; id?: string } | null = null;
       try { stored = JSON.parse(sessionStorage.getItem(selectionKey) ?? 'null'); } catch { /* optional preference */ }
       const validId = owner && stored?.owner === owner && result.items.some(item => item.id === stored?.id && item.isOwned)
@@ -63,6 +71,8 @@ export function useCharacters(enabled: boolean, detailKey: string | null) {
     // Old links using ?character=kind continue to work; new links use the server UUID.
     const id = detailId;
     setDetail(null); setDetailError('');
+    const preview = items.find(item => item.id.startsWith(previewPrefix) && (item.id === detailKey || item.id === id));
+    if (preview) { setDetail(preview); setDetailLoading(false); return; }
     if (!id) {
       setDetailLoading(waitingForList);
       if (!waitingForList) setDetailError('캐릭터를 찾을 수 없어요.');
@@ -76,7 +86,7 @@ export function useCharacters(enabled: boolean, detailKey: string | null) {
       if (!controller.signal.aborted) setDetailError(reason instanceof Error ? reason.message : '상세 정보를 불러오지 못했어요.');
     }).finally(() => { if (!controller.signal.aborted) setDetailLoading(false); });
     return () => controller.abort();
-  }, [enabled, token, detailKey, detailId, waitingForList, revision]);
+  }, [enabled, token, detailKey, detailId, waitingForList, revision, items]);
 
   const select = useCallback((character: Character) => {
     if (!character.isOwned || !items.some(item => item.id === character.id && item.isOwned)) return;
